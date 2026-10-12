@@ -8,6 +8,52 @@ import { GameStore } from '../src/logic/store';
 const rec = (id: string, rarity: 'common' | 'rare' = 'common') => ({ id, speciesId: rarity === 'rare' ? 'bubble-ram' : 'pebblefin', rarity, weight: rarity === 'rare' ? 20 : 2, modifier: 'normal' as const, matchFactor: 1, pool: 'meadow' as const });
 
 describe('eggs', () => {
+  it('has 12 eggs, priced cheapest to dearest, each with a valid pool for every tier it lists', () => {
+    expect(EGGS.length).toBe(12);
+    for (let i = 1; i < EGGS.length; i++) expect(EGGS[i].cost).toBeGreaterThan(EGGS[i - 1].cost);
+    expect(EGGS[0].cost).toBeLessThan(300); // a cheaper egg than the old starter
+    expect(EGGS[EGGS.length - 1].cost).toBeGreaterThan(15000); // pricier than the old top egg
+    for (const egg of EGGS) {
+      const sum = Object.values(egg.odds).reduce((a, b) => a + b!, 0);
+      expect(sum).toBeCloseTo(100, 5);
+      for (const id of egg.pool) expect(PETS_BY_ID[id], `${egg.id}:${id}`).toBeTruthy();
+      for (const [r, pct] of Object.entries(egg.odds)) if (pct) expect(egg.pool.some((id) => PETS_BY_ID[id].rarity === r), `${egg.id} ${r}`).toBe(true);
+    }
+    // every pet can be hatched from at least one egg
+    for (const id of Object.keys(PETS_BY_ID)) expect(EGGS.some((e) => e.pool.includes(id)), id).toBe(true);
+  });
+
+  it('every egg hatches only pets from its own pool, and opens for a player who meets its level', () => {
+    for (const egg of EGGS) {
+      const s = new GameStore();
+      s.state.level = egg.level;
+      s.state.coins = egg.cost * 3;
+      for (let i = 0; i < 3; i++) {
+        const r = s.hatch(egg.id, createRng(i + 1));
+        expect(r.ok, egg.id).toBe(true);
+        expect(egg.pool).toContain(r.petId);
+      }
+      expect(s.state.coins).toBeLessThan(egg.cost);
+      if (egg.level > 1) {
+        const low = new GameStore();
+        low.state.level = egg.level - 1;
+        low.state.coins = egg.cost;
+        expect(low.hatch(egg.id, createRng(1)).ok).toBe(false);
+      }
+    }
+  });
+
+  it('old saves (3 eggs) load with pity for every new egg', () => {
+    const raw = JSON.parse(serializeSave(newSave()));
+    raw.eggPity = { meadow: 4, reef: 2, star: 7 };
+    const r = parseSave(JSON.stringify(raw));
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    expect(r.data.eggPity.meadow).toBe(4);
+    expect(r.data.eggPity.star).toBe(7);
+    for (const e of EGGS) expect(r.data.eggPity[e.id]).toBeGreaterThanOrEqual(0);
+  });
+
   it('rolls match the published tier odds (±1.5%) without pity', () => {
     for (const egg of EGGS) {
       const rng = createRng(11);

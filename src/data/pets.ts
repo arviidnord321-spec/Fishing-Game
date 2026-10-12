@@ -39,7 +39,7 @@ export interface PetDef {
   features: PetFeature[];
 }
 
-export type EggId = 'meadow' | 'reef' | 'star';
+export type EggId = 'blossom' | 'meadow' | 'ember' | 'frost' | 'reef' | 'sunken' | 'storm' | 'star' | 'crystal' | 'lunar' | 'solar' | 'rift';
 
 export interface EggDef {
   id: EggId;
@@ -49,15 +49,27 @@ export interface EggDef {
   level: number;
   /** Tier weights (percent). Shown to players exactly as written. */
   odds: Partial<Record<Rarity, number>>;
-  shell: string;
-  spots: string;
+  /** Pets this egg can hatch (every tier with odds must have at least one). */
+  pool: string[];
+  /** Card colours [light, dark] for the shop. */
+  theme: [string, string];
   blurb: string;
 }
 
+/** Sorted by price: cheap starter eggs first, big late-game eggs last. */
 export const EGGS: EggDef[] = [
-  { id: 'meadow', name: 'Meadow Egg', cost: 300, level: 1, odds: { common: 60, uncommon: 28, rare: 10, epic: 2 }, shell: '#bff0a8', spots: '#62c46a', blurb: 'Soft and warm. Hatches island critters.' },
-  { id: 'reef', name: 'Reef Egg', cost: 2500, level: 5, odds: { common: 50, uncommon: 30, rare: 15, epic: 4.5, legendary: 0.5 }, shell: '#9ee8f0', spots: '#2f9fc2', blurb: 'Smells like the sea. Hatches water spirits.' },
-  { id: 'star', name: 'Star Egg', cost: 15000, level: 12, odds: { uncommon: 45, rare: 35, epic: 17, legendary: 3 }, shell: '#cdb8ff', spots: '#ffd76e', blurb: 'Hums at night. Hatches sky legends.' },
+  { id: 'blossom', name: 'Blossom Egg', cost: 120, level: 1, odds: { common: 72, uncommon: 24, rare: 4 }, pool: ['sprout-puff', 'pebble-pup', 'bumble-bun', 'mossling', 'glow-moth'], theme: ['#ffc4dc', '#ff7fb0'], blurb: 'Cheap and cheerful. Mostly garden friends.' },
+  { id: 'meadow', name: 'Meadow Egg', cost: 300, level: 1, odds: { common: 60, uncommon: 28, rare: 10, epic: 2 }, pool: ['sprout-puff', 'pebble-pup', 'bumble-bun', 'mossling', 'glow-moth', 'tidal-fox'], theme: ['#b8f39a', '#4fbf4a'], blurb: 'Soft and warm. Hatches island critters.' },
+  { id: 'ember', name: 'Ember Egg', cost: 900, level: 3, odds: { common: 55, uncommon: 33, rare: 10, epic: 2 }, pool: ['pebble-pup', 'coral-crab', 'comet-kit', 'glow-moth', 'aurora-phoenix'], theme: ['#ffb36b', '#e0502a'], blurb: 'Warm to the touch. Hatches fiery friends.' },
+  { id: 'frost', name: 'Frost Egg', cost: 1600, level: 4, odds: { common: 52, uncommon: 32, rare: 13, epic: 3 }, pool: ['ripple-otter', 'pebble-pup', 'lantern-jelly', 'star-whalelet', 'prism-ray'], theme: ['#cfe8ff', '#5aa6f0'], blurb: 'Cold and sparkly. Hatches chilly swimmers.' },
+  { id: 'reef', name: 'Reef Egg', cost: 2500, level: 5, odds: { common: 50, uncommon: 30, rare: 15, epic: 4.5, legendary: 0.5 }, pool: ['coral-crab', 'ripple-otter', 'lantern-jelly', 'kelp-drake', 'prism-ray', 'tide-dragon'], theme: ['#8ff0f5', '#1fa6c9'], blurb: 'Smells like the sea. Hatches water spirits.' },
+  { id: 'sunken', name: 'Sunken Egg', cost: 5000, level: 7, odds: { common: 40, uncommon: 33, rare: 20, epic: 6, legendary: 1 }, pool: ['coral-crab', 'ripple-otter', 'lantern-jelly', 'kelp-drake', 'prism-ray', 'tide-dragon'], theme: ['#5fd6c6', '#1d7a78'], blurb: 'From the deep. Better odds on reef treasures.' },
+  { id: 'storm', name: 'Storm Egg', cost: 8000, level: 9, odds: { uncommon: 50, rare: 35, epic: 13, legendary: 2 }, pool: ['bumble-bun', 'comet-kit', 'kelp-drake', 'tidal-fox', 'tide-dragon'], theme: ['#7f9bff', '#2c3f9c'], blurb: 'Crackles with power. No commons inside.' },
+  { id: 'star', name: 'Star Egg', cost: 15000, level: 12, odds: { uncommon: 45, rare: 35, epic: 17, legendary: 3 }, pool: ['comet-kit', 'nebula-owl', 'star-whalelet', 'aurora-phoenix', 'moon-seraph', 'rift-wyrm'], theme: ['#c8a8ff', '#7c4fe0'], blurb: 'Hums at night. Hatches sky legends.' },
+  { id: 'crystal', name: 'Crystal Egg', cost: 25000, level: 13, odds: { uncommon: 35, rare: 40, epic: 20, legendary: 5 }, pool: ['lantern-jelly', 'glow-moth', 'nebula-owl', 'prism-ray', 'moon-seraph'], theme: ['#d6a8ff', '#8a3fe0'], blurb: 'Glitters with gems. Shiny, rare pets.' },
+  { id: 'lunar', name: 'Lunar Egg', cost: 40000, level: 15, odds: { rare: 60, epic: 32, legendary: 8 }, pool: ['glow-moth', 'nebula-owl', 'star-whalelet', 'prism-ray', 'moon-seraph'], theme: ['#e6dcff', '#8c74e6'], blurb: 'Moonlit and calm. Always Rare or better.' },
+  { id: 'solar', name: 'Solar Egg', cost: 75000, level: 17, odds: { rare: 50, epic: 38, legendary: 12 }, pool: ['glow-moth', 'aurora-phoenix', 'tidal-fox', 'tide-dragon', 'rift-wyrm'], theme: ['#ffe08a', '#ff9a1f'], blurb: 'Blazing bright. Big chance of a legend.' },
+  { id: 'rift', name: 'Rift Egg', cost: 150000, level: 20, odds: { epic: 75, legendary: 25 }, pool: ['tidal-fox', 'aurora-phoenix', 'prism-ray', 'tide-dragon', 'moon-seraph', 'rift-wyrm'], theme: ['#c86bff', '#4a1d8a'], blurb: 'Torn from the rift. Epic or Legendary only.' },
 ];
 export const EGGS_BY_ID = Object.fromEntries(EGGS.map((e) => [e.id, e])) as Record<EggId, EggDef>;
 

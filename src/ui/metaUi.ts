@@ -6,6 +6,7 @@ import { dailyReward, questLabel, type Reward } from '../logic/meta';
 import type { GameStore, HatchResult } from '../logic/store';
 import { fmtCoins, fmtTime, h } from './dom';
 import { iconEl } from './icons';
+import { eggSvg } from './eggArt';
 
 export interface MetaDeps {
   store: GameStore;
@@ -30,13 +31,9 @@ function pct(v: number): string {
   return `+${Math.round(v * 100)}%`;
 }
 
-/** CSS egg with the egg's shell colors. */
+/** Drawn egg art (SVG) in an animatable wrapper. */
 export function eggArt(egg: EggId, cls = ''): HTMLElement {
-  const def = EGGS_BY_ID[egg];
-  const el = h('div', { class: `egg ${cls}`, 'aria-hidden': 'true' });
-  el.style.setProperty('--shell', def.shell);
-  el.style.setProperty('--spots', def.spots);
-  return el;
+  return h('div', { class: `egg egg-${egg} ${cls}`, 'aria-hidden': 'true', html: eggSvg(egg) });
 }
 
 // ------------------------------------------------------------------ shop: eggs
@@ -45,7 +42,7 @@ export function eggsTab(d: MetaDeps): HTMLElement {
   const wrap = h('div', { class: 'eggs' });
   for (const egg of EGGS) {
     const st = s.eggStatus(egg.id);
-    const pool = PETS.filter((p) => p.egg === egg.id);
+    const pool = PETS.filter((p) => egg.pool.includes(p.id));
     const odds = h('div', { class: 'odds' });
     for (const r of RARITIES) {
       const v = egg.odds[r];
@@ -68,8 +65,8 @@ export function eggsTab(d: MetaDeps): HTMLElement {
     wrap.append(
       h(
         'div',
-        { class: `egg-card${st.unlocked ? '' : ' locked'}` },
-        h('div', { class: 'egg-stage' }, eggArt(egg.id, st.unlocked ? 'idle' : '')),
+        { class: `egg-card${st.unlocked ? '' : ' locked'}`, style: `--e1:${egg.theme[0]};--e2:${egg.theme[1]}` },
+        h('div', { class: 'egg-stage' }, eggArt(egg.id, st.unlocked ? 'idle' : ''), h('span', { class: 'egg-price' }, iconEl('coin', 'bi'), fmtCoins(egg.cost))),
         h('h3', {}, egg.name),
         h('p', { class: 'cmp' }, egg.blurb),
         h('div', { class: 'collect' }, `Collected ${owned}/${pool.length}`),
@@ -141,7 +138,7 @@ export function petsBody(d: MetaDeps): HTMLElement {
         { class: `card pet-card r-${p.rarity}${lvl ? '' : ' unknown'}${on ? ' equipped' : ''}`, style: `--rc:${RARITY_COLOR[p.rarity]}` },
         h('img', { src: d.petThumb(p.id, !lvl), alt: '' }),
         h('div', { class: 'name' }, lvl ? p.name : '???'),
-        h('div', { class: 'rarity', style: `color:${RARITY_COLOR[p.rarity]}` }, `${RARITY_GLYPH[p.rarity]} ${RARITY_LABEL[p.rarity]} · ${EGGS_BY_ID[p.egg].name}`),
+        h('div', { class: 'rarity', style: `color:${RARITY_COLOR[p.rarity]}` }, `${RARITY_GLYPH[p.rarity]} ${RARITY_LABEL[p.rarity]} · ${eggsFor(p.id)}`),
         lvl ? h('div', { class: 'stars', 'aria-label': `Level ${lvl} of ${PET_MAX_LEVEL}` }, '★'.repeat(lvl) + '☆'.repeat(PET_MAX_LEVEL - lvl)) : null,
         h('div', { class: 'meta' }, `${BONUS_ICON[p.bonus]} ${pct(petBonusAt(p, Math.max(1, lvl)))} ${BONUS_LABEL[p.bonus]}${lvl && lvl < PET_MAX_LEVEL ? ` · next ${pct(petBonusAt(p, lvl + 1))}` : ''}`),
         lvl
@@ -263,4 +260,10 @@ export function questViews(s: GameStore): QuestView[] {
 
 export function rarityRank(r: Rarity): number {
   return RARITIES.indexOf(r);
+}
+
+/** Names of the eggs a pet can hatch from (cheapest first). */
+export function eggsFor(petId: string): string {
+  const names = EGGS.filter((e) => e.pool.includes(petId)).map((e) => e.name.replace(' Egg', ''));
+  return names.length > 2 ? `${names[0]}, ${names[1]} +${names.length - 2} eggs` : `${names.join(' / ')} Egg${names.length > 1 ? 's' : ''}`;
 }

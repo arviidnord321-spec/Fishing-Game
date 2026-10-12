@@ -24,7 +24,7 @@ const journal = Object.fromEntries(['pebblefin', 'ribbon-minnow', 'button-carp',
 const save = {
   version: 2, coins: 48230, ownedRods: ['driftwood', 'riverglass', 'coppercoil'], equippedRod: 'coppercoil', upgrades: { poolGrowth: 2, sellValue: 1, bag: 1 },
   inventory: inv, journal, tutorial: { firstCast: true, firstCatch: true, firstSale: true, firstPurchase: true, skipped: true }, luresUnlocked: true,
-  nextOrdinal: 20, nextTx: 40, announcedPools: ['meadow', 'reed'], xp: 120, level: 8, tickets: { meadow: 1, reef: 0 },
+  nextOrdinal: 20, nextTx: 40, announcedPools: ['meadow', 'reed'], xp: 120, level: 14, tickets: { meadow: 1, reef: 0 },
   pets: { 'sprout-puff': 2, 'bumble-bun': 1, 'glow-moth': 1, 'tidal-fox': 1, 'coral-crab': 3 }, equippedPets: ['tidal-fox', 'glow-moth'], petSlots: 2,
   daily: { lastClaim: '', streak: 2 }, settings: { quality: process.env.TOUR_QUALITY || 'high' }, streak: 4, bestStreak: 6, totalCaught: 40, playtime: 900, worldClock: 60, boosts: { coinRush: 1100, luckyCharm: 0, quickReel: 0 },
 };

@@ -1,6 +1,53 @@
 # QA report
 
-## Round 5: UI overhaul and world look (latest)
+## Round 6: 12 eggs (latest)
+
+The egg lineup went from 3 to 12, drawn after the owner's egg sheet as SVG (`src/ui/eggArt.ts`).
+
+**Art.** Each egg has a gradient shell with clipped patterns, an ink outline, a shine, and its own
+decorations:
+- Meadow: leaves.
+- Reef: coral and a shell.
+- Star: stars and a gold band.
+- Blossom: lotus petals.
+- Ember: lava cracks and a flame.
+- Frost: ice shards and a snowflake.
+- Storm: lightning and clouds.
+- Crystal: facets and a gem.
+- Sunken: a spiral, kelp and pearls.
+- Lunar: crescent moons.
+- Solar: a sun with rays and a crown.
+- Rift: horns and glowing cracks.
+
+**Gameplay.**
+- Every egg is in the shop on its own themed card, with a price tag, level lock, exact odds,
+  pet names per tier, a pity counter and a collection count.
+- Every egg works in the hatch animation and reveal.
+- Prices span ¢120 to ¢150,000, with level gates from 1 to 20.
+- New cheaper eggs: Blossom (¢120), Ember (¢900), Frost (¢1,600).
+- New pricier eggs: Sunken, Storm, Crystal, Lunar, Solar and Rift.
+- The late eggs drop low tiers: Storm has no commons, Lunar is Rare+, and Rift is Epic or
+  Legendary only.
+- Each egg hatches from an explicit themed pool of the existing 18 pets. Pet cards list the eggs a
+  pet comes from.
+- Old saves keep their Meadow, Reef and Star pity counters, and new eggs start at 0.
+
+**Verification.**
+- 3 new unit tests (88/88 pass):
+  - 12 eggs, priced in ascending order;
+  - odds sum to 100, and every listed tier has a pet in the pool;
+  - every pet is hatchable from some egg;
+  - every egg opens at its level and hatches only from its own pool;
+  - old 3-egg saves load.
+- The existing ±1.5% odds test covers all 12 eggs.
+- Browser checks with no console errors:
+  - shop at 1280×720 and 844×390 touch;
+  - Storm and Blossom hatches;
+  - `qa-pets` and `qa-play`.
+
+---
+
+## Round 5: UI overhaul and world look
 
 **UI.** Every screen was restyled in a chunky, toy-like style common to popular Roblox simulator games. No Roblox
 assets or branding are used.

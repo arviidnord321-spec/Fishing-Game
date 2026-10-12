@@ -141,7 +141,7 @@ const RARE_PLUS: Rarity[] = ['rare', 'epic', 'legendary'];
  */
 export function rollEgg(egg: EggId, spinsSinceRare: number, pity: number, rng: Rng): { petId: string; pityUsed: boolean } {
   const def = EGGS_BY_ID[egg];
-  const pool = PETS.filter((p) => p.egg === egg);
+  const pool = PETS.filter((p) => def.pool.includes(p.id));
   const guaranteed = spinsSinceRare >= pity - 1;
   const tiers = RARITIES.filter((r) => (def.odds[r] ?? 0) > 0 && pool.some((p) => p.rarity === r) && (!guaranteed || RARE_PLUS.includes(r)));
   const total = tiers.reduce((s, r) => s + (def.odds[r] ?? 0), 0);

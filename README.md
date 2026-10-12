@@ -116,9 +116,24 @@ cosmetic randomness (particles, bobber jitter) is separate.
 All of these use **earned coins only**. Nothing can be bought with real money.
 
 - **Pets.** Open eggs at the **Pet Eggs** hut or in the 🛒 Shop:
-  - **Meadow Egg:** ¢300.
-  - **Reef Egg:** ¢2,500, from level 5.
-  - **Star Egg:** ¢15,000, from level 12.
+  - There are 12 eggs, from cheapest to dearest:
+
+    | Egg | Price | From level | Note |
+    | --- | --- | --- | --- |
+    | Blossom | ¢120 | 1 | |
+    | Meadow | ¢300 | 1 | |
+    | Ember | ¢900 | 3 | |
+    | Frost | ¢1,600 | 4 | |
+    | Reef | ¢2,500 | 5 | |
+    | Sunken | ¢5,000 | 7 | |
+    | Storm | ¢8,000 | 9 | no commons |
+    | Star | ¢15,000 | 12 | |
+    | Crystal | ¢25,000 | 13 | |
+    | Lunar | ¢40,000 | 15 | always Rare or better |
+    | Solar | ¢75,000 | 17 | |
+    | Rift | ¢150,000 | 20 | Epic or Legendary only |
+
+  - Each egg has its own themed pet pool and tier odds (`src/data/pets.ts`).
 
   Each egg's exact odds are printed on it. You are guaranteed a Rare or better within 10
   opens. There are 18 original pets, and each boosts catch value, luck, reel speed or XP.

@@ -16,6 +16,7 @@ Everything else is created in code and written for this project:
 | Music and sound effects | Synthesized at runtime with Web Audio (`src/game/audio.ts`) | Project-original |
 | UI font | **Fredoka** 600/700, latin subset (`src/assets/fonts/`, from the `@fontsource/fredoka` 5.3.0 package), inlined into the built CSS. Copyright 2016 The Fredoka Project Authors. The license text is in `src/assets/fonts/OFL-Fredoka.txt`, and a notice comment is kept in the shipped CSS. | SIL Open Font License 1.1 |
 | UI icons | Inline SVG drawn for this project (`src/ui/icons.ts`) | Project-original |
+| 12 egg illustrations | Inline SVG (`src/ui/eggArt.ts`) drawn for this project after the owner-supplied egg design sheet. No image data from the sheet is shipped. | Project-original |
 | Clouds, shore foam | Procedural geometry (`src/game/scenery.ts`) | Project-original |
 | Favicon | Inline SVG in `index.html` | Project-original |
 

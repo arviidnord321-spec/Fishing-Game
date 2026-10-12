@@ -119,7 +119,7 @@ export function newSave(): SaveData {
     pets: {},
     equippedPets: [],
     petSlots: 1,
-    eggPity: { meadow: 0, reef: 0, star: 0 },
+    eggPity: Object.fromEntries(EGGS.map((e) => [e.id, 0])) as Record<EggId, number>,
     eggsOpened: 0,
     daily: { lastClaim: '', streak: 0 },
     quests: { day: '', list: [] },
