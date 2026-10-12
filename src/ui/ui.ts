@@ -139,6 +139,7 @@ export class UI {
   private questsCollapsed = typeof matchMedia === 'function' && matchMedia('(max-height: 520px), (max-width: 600px)').matches;
   private hintPlaced = 0;
   private rootRect: DOMRect = new DOMRect();
+  private hudBox = { right: 0, bottom: 0, at: 0 };
 
   /** Cache the HUD root's box; called on resize so per-frame code never reads layout. */
   setViewport(): void {
@@ -196,7 +197,7 @@ export class UI {
     );
     E.quests = h('div', { class: 'quest-card interactive' });
     E.chips = h('div', { class: 'chip-row' });
-    const topLeft = h('div', { class: 'top-left' }, h('div', { class: 'cur-stack' }, E.levelRow, E.coinPill, E.bagPill), E.chips, E.quests, E.save);
+    const topLeft = (E.topLeft = h('div', { class: 'top-left' }, h('div', { class: 'cur-stack' }, E.levelRow, E.coinPill, E.bagPill), E.chips, E.quests, E.save));
 
     E.goal = h('div', { class: 'goal', role: 'status', 'aria-live': 'polite' });
     const topCenter = h('div', { class: 'top-center' }, E.goal);
@@ -411,7 +412,12 @@ export class UI {
       E.joyKnob.style.top = `${v.joy.py - rr.top}px`;
     }
 
-    // world labels
+    // world labels (hidden where they would slide under the top-left HUD column)
+    const now2 = performance.now();
+    if (now2 - this.hudBox.at > 500) {
+      const r = E.topLeft.getBoundingClientRect();
+      this.hudBox = { right: r.right - this.rootRect.left, bottom: r.bottom - this.rootRect.top, at: now2 };
+    }
     const seen = new Set<string>();
     for (const l of v.labels) {
       seen.add(l.id);
@@ -423,8 +429,9 @@ export class UI {
       }
       const cls = `wlabel ${l.cls ?? ''}`;
       if (el.className !== cls) el.className = cls;
-      show(el, l.visible);
-      if (l.visible) {
+      const underHud = l.x - 70 < this.hudBox.right && l.y - 40 < this.hudBox.bottom;
+      show(el, l.visible && !underHud);
+      if (l.visible && !underHud) {
         setHtml(el, `${esc(l.text)}${l.sub ? `<small>${esc(l.sub)}</small>` : ''}`);
         el.style.transform = `translate3d(${Math.round(l.x)}px, ${Math.round(l.y)}px, 0) translate(-50%, -100%)`;
       }
