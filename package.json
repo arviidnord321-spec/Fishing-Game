@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "simulate": "vite-node scripts/simulate-economy.ts"
+    "simulate": "vite-node scripts/simulate-economy.ts",
+    "build:qa": "vite build --mode qa --outDir dist-qa"
   },
   "dependencies": {
     "three": "0.186.1"

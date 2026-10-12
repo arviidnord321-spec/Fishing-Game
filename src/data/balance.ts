@@ -106,7 +106,7 @@ export const POOLS: PoolDef[] = [
   { id: 'meadow', name: 'Meadow Pool', x: 0, z: 4, radius: 3.2, lockText: '' },
   { id: 'reed', name: 'Reed Pool', x: -18, z: -7, radius: 4.5, lockText: 'Own the Coppercoil rod and discover 4 Meadow species.' },
   { id: 'moon', name: 'Moon Pool', x: 18, z: -9, radius: 5.5, lockText: 'Own the Stormline rod and discover 4 Reed species.' },
-  { id: 'rift', name: 'Rift Bloom', x: 0, z: -16, radius: 7.5, lockText: 'Opens during the Rift Bloom event.' },
+  { id: 'rift', name: 'Rift Bloom', x: 0, z: -13.5, radius: 7.5, lockText: 'Opens during the Rift Bloom event.' },
 ];
 export const POOLS_BY_ID = Object.fromEntries(POOLS.map((p) => [p.id, p])) as Record<string, PoolDef>;
 
