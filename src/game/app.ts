@@ -232,6 +232,7 @@ export class GameApp {
             'Rift soon': () => this.events.debugTriggerSoon(this.store.state.worldClock),
             'Skip 60s': () => this.store.tickClock(60),
             'Pool mood': () => this.world.ambience.debugShift(),
+            'Pool violet': () => this.world.ambience.debugShift(0.6),
             'Finish journal': () => {
               for (const sp of speciesIn(this.store.state.world)) this.store.state.journal[sp.id] ??= { count: 1, maxWeight: sp.minWeight, maxValue: sp.baseValue, modifiers: ['normal'] };
               this.store.debugAddCoins(0);
