@@ -19,6 +19,8 @@ interface Milestones {
   moon?: number;
   all?: number;
   leviathan?: number;
+  starweaver?: number;
+  lastMissing?: string;
 }
 
 const SUCCESS: Record<string, number> = { common: 0.92, uncommon: 0.85, rare: 0.75, epic: 0.62, legendary: 0.5 };
@@ -110,6 +112,7 @@ function run(seed: number, limitSeconds = 3 * 3600): Milestones {
       m.firstSale ??= t;
       spend(store);
     }
+    if (store.state.ownedRods.includes('starweaver')) m.starweaver ??= t;
     if (store.isPoolUnlocked('reed')) m.reed ??= t;
     if (store.isPoolUnlocked('moon')) m.moon ??= t;
     if (store.discoveredCount() === SPECIES.length) {
@@ -117,12 +120,14 @@ function run(seed: number, limitSeconds = 3 * 3600): Milestones {
       break;
     }
   }
+  const missing = SPECIES.filter((x) => !store.state.journal[x.id]).map((x) => x.id);
+  if (missing.length) m.lastMissing = missing.join(',');
   return m;
 }
 
 const N = 40;
 const results = Array.from({ length: N }, (_, i) => run(1000 + i));
-const keys: (keyof Milestones)[] = ['firstCatch', 'firstSale', 'firstPurchase', 'reed', 'moon', 'all', 'leviathan'];
+const keys = ['firstCatch', 'firstSale', 'firstPurchase', 'reed', 'moon', 'starweaver', 'leviathan', 'all'] as const;
 const fmt = (s?: number) => (s === undefined ? 'n/a' : `${(s / 60).toFixed(1)} min`);
 console.log(`Seeded economy simulation, ${N} runs (time in active minutes)`);
 console.log('milestone        p10        median     p90        reached');
@@ -131,3 +136,7 @@ for (const k of keys) {
   const q = (p: number) => vals[Math.min(vals.length - 1, Math.floor(p * vals.length))];
   console.log(`${k.padEnd(16)} ${fmt(q(0.1)).padEnd(10)} ${fmt(q(0.5)).padEnd(10)} ${fmt(q(0.9)).padEnd(10)} ${vals.length}/${N}`);
 }
+
+const miss = new Map<string, number>();
+for (const r of results) for (const id of r.lastMissing?.split(',') ?? []) miss.set(id, (miss.get(id) ?? 0) + 1);
+if (miss.size) console.log(`still missing at cutoff: ${[...miss].map(([k, v]) => `${k}×${v}`).join(', ')}`);

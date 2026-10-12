@@ -452,15 +452,16 @@ describe('world clock', () => {
     expect(ed.info(250).phase).toBe('open');
     expect(ed.info(250).current).toBe('sun');
     expect(ed.info(265).current).toBe('leaf');
-    expect(ed.info(320).phase).toBe('grace');
-    expect(ed.info(343).phase).toBe('closing');
-    expect(ed.info(350).phase).toBe('idle');
-    expect(ed.info(600 + 5).phase).toBe('open');
+    // open lasts 90s (242–332), grace 25s, closing 2s, interval 300s
+    expect(ed.info(335).phase).toBe('grace');
+    expect(ed.info(358).phase).toBe('closing');
+    expect(ed.info(400).phase).toBe('idle');
+    expect(ed.info(540 + 5).phase).toBe('open');
   });
   it('grace may end early', () => {
     const ed = new EventDirector();
-    ed.endGraceEarly(320);
-    expect(ed.info(320.5).phase).toBe('closing');
-    expect(ed.info(323).phase).toBe('idle');
+    ed.endGraceEarly(335);
+    expect(ed.info(335.5).phase).toBe('closing');
+    expect(ed.info(338).phase).toBe('idle');
   });
 });

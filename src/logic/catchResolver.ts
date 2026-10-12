@@ -46,8 +46,9 @@ export function eligibleSpecies(ctx: CatchContext): SpeciesDef[] {
   );
 }
 
-export function effectiveLuck(castLuck: number, poolGrowthLevel: number): number {
-  return castLuck * (1 + BALANCE.poolGrowthLuckPerLevel * poolGrowthLevel);
+export function effectiveLuck(castLuck: number, poolGrowthLevel: number, pool: PoolId = 'meadow'): number {
+  const rift = pool === 'rift' ? BALANCE.event.riftLuck : 1;
+  return castLuck * (1 + BALANCE.poolGrowthLuckPerLevel * poolGrowthLevel) * rift;
 }
 
 /** Normalized rarity-tier probabilities over the tiers that have at least one eligible species. */
@@ -97,7 +98,7 @@ export function resolveCatch(ctx: CatchContext, rng: Rng): CatchRoll | null {
     const commons = eligible.filter((s) => s.rarity === 'common');
     species = commons.length ? commons[rng.int(commons.length)] : eligible[0];
   } else {
-    const probs = tierProbabilities(eligible, effectiveLuck(ctx.castLuck, ctx.poolGrowthLevel));
+    const probs = tierProbabilities(eligible, effectiveLuck(ctx.castLuck, ctx.poolGrowthLevel, ctx.pool));
     const tiers = RARITIES.filter((r) => probs[r] > 0);
     const tier = pickWeighted(tiers, (r) => probs[r], rng);
     const inTier = eligible.filter((s) => s.rarity === tier);

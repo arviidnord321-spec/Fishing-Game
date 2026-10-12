@@ -518,7 +518,7 @@ export class GameApp {
         this.fishOnUntil = 0;
         this.startReveal(e.record.speciesId, e.record.modifier, e.record.weight, e.record.rarity);
         this.ui.showCatch({ ...e.record, value: e.value, newSpecies: e.newSpecies, newRecord: e.newRecord, bagUsed: this.store.bagUsed, bagCap: this.store.capacity });
-        if (e.record.speciesId === 'rift-leviathan' || this.store.discoveredCount() === SPECIES.length && e.newSpecies) this.platform.happytime();
+        if (e.newSpecies && (e.record.speciesId === 'rift-leviathan' || this.store.discoveredCount() === SPECIES.length)) this.platform.happytime();
         break;
       case 'escaped': {
         this.fishOnUntil = 0;
@@ -839,7 +839,7 @@ export class GameApp {
     if (ev.phase === 'opening') return { text: 'The Rift Bloom is opening…', event: true };
     if (ev.phase === 'open') {
       const c = lureName(ev.current);
-      return { text: `RIFT BLOOM · ${fmtTime(ev.remaining)} left`, sub: `Current: ${c.glyph} ${c.name} — match your lure for +10%`, event: true };
+      return { text: `RIFT BLOOM · ${fmtTime(ev.remaining)} left · luck ×${BALANCE.event.riftLuck}`, sub: `Current: ${c.glyph} ${c.name} — match your lure for +10% value`, event: true };
     }
     if (ev.phase === 'grace') return { text: 'Rift closing — finish your catch!', event: true };
     if (s.bagFull()) return { text: 'Bag full — sell your catches', sub: 'Follow the beacon to the Fish Stand' };

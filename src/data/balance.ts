@@ -31,7 +31,7 @@ export const BALANCE = {
   },
   escapeSeconds: 0.65,
   reveal: { normal: 1.5, special: 2.2, continueAfter: 0.65 },
-  rarityWeights: { common: 65, uncommon: 24, rare: 9, epic: 1.8, legendary: 0.2 } as Record<Rarity, number>,
+  rarityWeights: { common: 65, uncommon: 24, rare: 9, epic: 4, legendary: 2.5 } as Record<Rarity, number>,
   rarityLuckExponent: { common: 0, uncommon: 0.35, rare: 0.65, epic: 1, legendary: 1 } as Record<Rarity, number>,
   poolGrowthLuckPerLevel: 0.08,
   poolGrowthRadiusPerLevel: 0.35,
@@ -40,13 +40,15 @@ export const BALANCE = {
   dayNight: { day: 210, dusk: 30, night: 90, dawn: 30 },
   event: {
     firstStart: 240,
-    interval: 360,
+    interval: 300,
     notice: 15,
     opening: 2,
-    open: 75,
+    open: 90,
     grace: 25,
     closing: 2,
     currentSwap: 20,
+    /** Displayed luck multiplier for casts into the open rift. */
+    riftLuck: 1.5,
   },
   startingBag: 8,
   cosmeticCost: 300,
@@ -55,8 +57,8 @@ export const BALANCE = {
 export const RODS: RodDef[] = [
   { id: 'driftwood', name: 'Driftwood', cost: 0, maxWeight: 10, reelSpeed: 1.0, windowBonus: 0, color: '#8a5a33', accent: '#d7b48a', blurb: 'A sturdy stick with a dream.' },
   { id: 'riverglass', name: 'Riverglass', cost: 180, maxWeight: 25, reelSpeed: 1.1, windowBonus: 0.01, color: '#4fc6d8', accent: '#e4fbff', blurb: 'Clear resin, smooth reel.' },
-  { id: 'coppercoil', name: 'Coppercoil', cost: 900, maxWeight: 80, reelSpeed: 1.22, windowBonus: 0.02, color: '#c87b3e', accent: '#ffd29b', blurb: 'Coiled copper handles real weight.' },
-  { id: 'stormline', name: 'Stormline', cost: 3200, maxWeight: 180, reelSpeed: 1.35, windowBonus: 0.03, color: '#5160c9', accent: '#ffe066', blurb: 'Charged line for heavy fighters.' },
+  { id: 'coppercoil', name: 'Coppercoil', cost: 1100, maxWeight: 80, reelSpeed: 1.22, windowBonus: 0.02, color: '#c87b3e', accent: '#ffd29b', blurb: 'Coiled copper handles real weight.' },
+  { id: 'stormline', name: 'Stormline', cost: 4000, maxWeight: 180, reelSpeed: 1.35, windowBonus: 0.03, color: '#5160c9', accent: '#ffe066', blurb: 'Charged line for heavy fighters.' },
   { id: 'starweaver', name: 'Starweaver', cost: 9500, maxWeight: 500, reelSpeed: 1.5, windowBonus: 0.04, color: '#2a2f5e', accent: '#ffd76e', blurb: 'Woven from night-sky thread.' },
   { id: 'riftcaller', name: 'Riftcaller', cost: 26000, maxWeight: 1200, reelSpeed: 1.65, windowBonus: 0.05, color: '#8a3cd1', accent: '#ff8be0', blurb: 'Hums when a portal is near.' },
 ];

@@ -3,6 +3,7 @@ import { SPECIES, SPECIES_BY_ID } from '../data/species';
 import type { CatchRecord, LureId, ModifierId, PoolId, Rarity, UpgradeTrack } from '../data/types';
 import { RARITIES } from '../data/types';
 import type { InputManager } from '../game/input';
+import { eligibleSpecies, effectiveLuck, tierProbabilities } from '../logic/catchResolver';
 import { DEFAULT_BINDINGS } from '../logic/saveSchema';
 import type { GameStore } from '../logic/store';
 import { esc, fmtCoins, fmtCompact, h, setHtml, setText, show } from './dom';
@@ -182,6 +183,7 @@ export class UI {
     E.interact = h('button', { class: 'btn primary', onclick: () => d.onInteract() }, 'Sell');
     E.lures = h('div', { class: 'lures', role: 'group', 'aria-label': 'Choose lure' });
     const bottomRight = h('div', { class: 'bottom-right' }, E.lures, E.interact, h('div', { class: 'action-row' }, E.cancel, E.action));
+    E.bottomRight = bottomRight;
 
     // cast meter
     E.castFill = h('div', { class: 'fill' });
@@ -293,10 +295,12 @@ export class UI {
       const btn = E.hint.querySelector('[data-skip]') as HTMLButtonElement | null;
       if (btn && !btn.onclick) btn.onclick = () => this.d.onSkipTutorial();
       show(E.hint, true);
+      // Sit above the whole control column so the bubble never covers lures or interact.
       const r = E.action.getBoundingClientRect();
+      const col = E.bottomRight.getBoundingClientRect();
       const rootR = this.root.getBoundingClientRect();
       E.hint.style.right = `${Math.max(8, rootR.right - r.right - 10)}px`;
-      E.hint.style.bottom = `${rootR.bottom - r.top + 14}px`;
+      E.hint.style.bottom = `${rootR.bottom - col.top + 14}px`;
     } else show(E.hint, false);
 
     // touch joystick
@@ -670,6 +674,7 @@ export class UI {
           h('p', { style: `color:${RARITY_COLOR[sel.rarity]};font-weight:800` }, `${RARITY_GLYPH[sel.rarity]} ${RARITY_LABEL[sel.rarity]} · ${POOLS_BY_ID[sel.pool].name}`),
           h('p', {}, `Hint: ${sel.hint}`),
           h('p', {}, `Weight range ${sel.minWeight}–${sel.maxWeight} kg`),
+          h('p', {}, this.oddsText(sel.id)),
           j ? h('p', {}, `Caught ${j.count}× · Record ${j.maxWeight.toFixed(1)} kg · Best ¢ ${fmtCoins(j.maxValue)}`) : null,
           j ? h('p', {}, `Modifiers found: ${j.modifiers.map((m) => MODIFIERS_BY_ID[m].name).join(', ')}`) : null,
         ),
@@ -684,6 +689,28 @@ export class UI {
       h('div', { class: 'journal' }, grid, detail),
     );
     return this.shell('Journal', body);
+  }
+
+  /** Real per-cast odds from the same resolver the game uses (no hidden adjustments). */
+  private oddsText(speciesId: string): string {
+    const s = this.d.store;
+    const sp = SPECIES_BY_ID[speciesId];
+    if (sp.minWeight > s.rod.maxWeight) return `Needs a rod rated ${sp.minWeight} kg or more (yours: ${s.rod.maxWeight} kg).`;
+    const ctx = {
+      pool: sp.pool,
+      rod: s.rod,
+      castLuck: 1,
+      poolGrowthLevel: s.state.upgrades.poolGrowth,
+      isNight: true,
+      eventOpen: true,
+      unlockedPools: s.unlockedPermanentPools(),
+    };
+    const elig = eligibleSpecies(ctx);
+    const inTier = elig.filter((x) => x.rarity === sp.rarity).length || 1;
+    const pct = (luck: number) => (tierProbabilities(elig, effectiveLuck(luck, ctx.poolGrowthLevel, sp.pool))[sp.rarity] / inTier) * 100;
+    const f = (v: number) => (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2));
+    const where = sp.pool === 'rift' ? 'in the open rift' : sp.availability === 'night' ? 'per cast at night' : 'per cast here';
+    return `Chance ${where}: ${f(pct(1))}% (×1.00 cast) · ${f(pct(2))}% (perfect cast)${sp.pool === 'rift' ? ' — includes the rift’s ×1.5 luck' : ''}.`;
   }
 
   private pausePanel(): HTMLElement {

@@ -43,6 +43,7 @@ export class InputManager {
   isTouch = false;
 
   constructor(private canvas: HTMLCanvasElement) {
+    this.isTouch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
     const on = <K extends keyof WindowEventMap>(t: EventTarget, type: K | string, fn: (e: never) => void, opts?: AddEventListenerOptions) => {
       t.addEventListener(type, fn as EventListener, opts);
       this.cleanup.push(() => t.removeEventListener(type, fn as EventListener, opts));
