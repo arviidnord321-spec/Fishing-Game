@@ -4,3 +4,4 @@ dist-*
 *.zip
 qa-output
 .DS_Store
+rift-fishing-single.html

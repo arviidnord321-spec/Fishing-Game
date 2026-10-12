@@ -13,7 +13,8 @@
     "test": "vitest run",
     "simulate": "vite-node scripts/simulate-economy.ts",
     "build:qa": "vite build --mode qa --outDir dist-qa",
-    "package:basic": "npm run build:basic && cd dist-crazygames-basic && zip -qr ../rift-fishing-crazygames-basic.zip . && cd .. && echo rift-fishing-crazygames-basic.zip"
+    "package:basic": "npm run build:basic && cd dist-crazygames-basic && zip -qr ../rift-fishing-crazygames-basic.zip . && cd .. && echo rift-fishing-crazygames-basic.zip",
+    "build:single": "vite build && node scripts/single-file.mjs dist rift-fishing-single.html"
   },
   "dependencies": {
     "three": "0.186.1"
