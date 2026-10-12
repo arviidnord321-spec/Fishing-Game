@@ -1,6 +1,7 @@
 import { BAG_CAPACITY, BALANCE, BOBBERS, LURES, MODIFIERS_BY_ID, POOLS_BY_ID, RARITY_COLOR, RARITY_GLYPH, RARITY_LABEL, RODS, UPGRADES } from '../data/balance';
-import { SPECIES, SPECIES_BY_ID } from '../data/species';
-import type { CatchRecord, LureId, ModifierId, PoolId, Rarity, UpgradeTrack } from '../data/types';
+import { SPECIES_BY_ID, speciesIn } from '../data/species';
+import { WORLDS, poolName } from '../data/worlds';
+import type { CatchRecord, LureId, ModifierId, PoolId, Rarity, UpgradeTrack, WorldId } from '../data/types';
 import { RARITIES } from '../data/types';
 import type { InputManager } from '../game/input';
 import { eligibleSpecies, effectiveLuck, tierProbabilities } from '../logic/catchResolver';
@@ -77,7 +78,7 @@ export interface CatchCardInfo {
   bagCap: number;
 }
 
-export type PanelName = 'bag' | 'stand' | 'shop' | 'journal' | 'pause' | 'pets' | 'daily';
+export type PanelName = 'bag' | 'stand' | 'shop' | 'journal' | 'pause' | 'pets' | 'daily' | 'worlds';
 
 export interface UIDeps {
   store: GameStore;
@@ -99,6 +100,7 @@ export interface UIDeps {
   onHatch: (egg: EggId) => HatchResult;
   onClaimDaily: () => void;
   onClaimQuest: (id: string) => void;
+  onTravel: (world: WorldId) => void;
   today: () => string;
   click: () => void;
   debugActions?: Record<string, () => void>;
@@ -126,7 +128,7 @@ export class UI {
   private toastsEl!: HTMLElement;
   private panel: PanelName | null = null;
   private overlay: HTMLElement | null = null;
-  private panelState = { tab: 'eggs', sort: 'newest' as 'newest' | 'value' | 'weight' | 'rarity', selected: new Set<string>(), journalSel: '', journalPool: 'all', journalFilter: 'all', pauseTab: 'settings' };
+  private panelState = { tab: 'eggs', sort: 'newest' as 'newest' | 'value' | 'weight' | 'rarity', selected: new Set<string>(), journalSel: '', journalWorld: 0 as 0 | WorldId, journalPool: 'all', journalFilter: 'all', pauseTab: 'settings' };
   private catchCard: HTMLElement | null = null;
   private actionDown = false;
   private lastLures = '';
@@ -208,7 +210,8 @@ export class UI {
     E.pauseBtn = h('button', { class: 'icon-btn pause', 'aria-label': 'Pause and settings', title: 'Pause (P)', onclick: () => this.toggle('pause'), html: icon('gear') });
     E.fps = h('div', { class: 'pill fps-chip', 'aria-label': 'Frame rate' });
     E.gift = h('button', { class: 'icon-btn gift', 'aria-label': 'Daily reward', title: 'Daily reward', onclick: () => this.toggle('daily') }, iconEl('gift'), h('span', { class: 'badge dot' }, '!'));
-    const topRight = h('div', { class: 'top-right' }, E.fps, E.phase, E.gift, E.pauseBtn);
+    E.worldBtn = h('button', { class: 'icon-btn world', 'aria-label': 'Worlds', title: 'Worlds', onclick: () => this.toggle('worlds') }, iconEl('globe'), h('span', { class: 'badge dot' }, '!'));
+    const topRight = h('div', { class: 'top-right' }, E.fps, E.phase, E.worldBtn, E.gift, E.pauseBtn);
 
     const menuBtn = (label: string, ico: string, cls: string, aria: string, title: string, p: PanelName) =>
       h('button', { class: `menu-btn ${cls}`, 'aria-label': aria, title, onclick: () => this.toggle(p) }, iconEl(ico, 'mi'), h('span', { class: 'lbl' }, label));
@@ -313,6 +316,7 @@ export class UI {
     E.levelRow.title = `${v.xp} / ${v.xpNeed} XP to level ${v.level + 1}`;
     setText(E.xpText, `${fmtCompact(v.xp)} / ${fmtCompact(v.xpNeed)} XP`);
     E.gift.classList.toggle('ready', v.dailyReady);
+    E.worldBtn.classList.toggle('ready', this.d.store.isWorldUnlocked(2) && this.d.store.state.world === 1);
     this.renderChips(v);
     this.renderQuests();
     show(E.fps, !!v.fps);
@@ -489,8 +493,8 @@ export class UI {
 
   // ------------------------------------------------------------------ celebration popups
   /** Non-blocking celebration banner (never pauses play). */
-  celebrate(title: string, sub: string, kind: 'level' | 'quest' | 'streak' | 'reward' | 'pet' = 'reward', ms = 3200): void {
-    const ico = { level: 'star', quest: 'quest', streak: 'fire', reward: 'gift', pet: 'paw' }[kind];
+  celebrate(title: string, sub: string, kind: 'level' | 'quest' | 'streak' | 'reward' | 'pet' | 'world' = 'reward', ms = 3200): void {
+    const ico = { level: 'star', quest: 'quest', streak: 'fire', reward: 'gift', pet: 'paw', world: 'globe' }[kind];
     const el = h('div', { class: `celebrate c-${kind}`, role: 'status' }, iconEl(ico, 'c-ico'), h('div', { class: 'c-text' }, h('div', { class: 'c-title' }, title), sub ? h('div', { class: 'c-sub' }, sub) : null));
     if (!this.root.classList.contains('reduced-motion')) {
       const conf = h('div', { class: 'confetti', 'aria-hidden': 'true' });
@@ -689,6 +693,9 @@ export class UI {
       case 'pets':
         panel = this.shell('Pets', petsBody(this.metaDeps()), h('footer', {}, h('span', { class: 'total' }, `${Object.keys(this.d.store.state.pets).length} pets collected`), h('button', { class: 'btn primary', onclick: () => this.open('shop', 'eggs') }, 'Get more pets')), undefined, 'paw');
         break;
+      case 'worlds':
+        panel = this.shell('Worlds', this.worldsBody(), undefined, undefined, 'globe');
+        break;
       case 'daily':
         panel = this.shell('Daily reward', dailyBody(this.metaDeps(), this.d.today(), () => this.d.onClaimDaily()), undefined, undefined, 'gift');
         break;
@@ -808,7 +815,7 @@ export class UI {
         let btn: HTMLElement;
         if (st === 'equipped') btn = h('button', { class: 'btn', disabled: true }, 'Equipped');
         else if (st === 'owned') btn = h('button', { class: 'btn cyan', onclick: () => { s.equipRod(rod.id); this.d.click(); } }, 'Equip');
-        else if (st === 'locked') btn = h('button', { class: 'btn', disabled: true }, `Buy ${RODS[RODS.indexOf(rod) - 1].name} first`);
+        else if (st === 'locked') btn = h('button', { class: 'btn', disabled: true }, rod.world === 2 && !s.isWorldUnlocked(2) ? 'Unlocks with Starlight Atoll' : `Buy ${RODS[RODS.indexOf(rod) - 1].name} first`);
         else if (st === 'poor') btn = h('button', { class: 'btn', disabled: true }, `Not enough coins (¢ ${fmtCoins(rod.cost)})`);
         else btn = h('button', { class: 'btn primary', onclick: (e: Event) => { (e.currentTarget as HTMLButtonElement).disabled = true; const r = s.buyRod(rod.id); if (!r.ok) this.toast(r.reason, 'bad'); } }, `Buy ¢ ${fmtCoins(rod.cost)}`);
         list.append(
@@ -816,7 +823,7 @@ export class UI {
             'div',
             { class: `rod${st === 'equipped' ? ' equipped' : ''}` },
             art,
-            h('h3', {}, rod.name),
+            h('h3', {}, rod.name, rod.world === 2 ? h('span', { class: 'lv-tag w2' }, 'Atoll') : null),
             h('div', { class: 'cmp' }, rod.blurb),
             statBar('Max weight', `${rod.maxWeight} kg`, Math.log10(rod.maxWeight) / Math.log10(1200)),
             statBar('Reel speed', `×${rod.reelSpeed.toFixed(2)}`, (rod.reelSpeed - 0.8) / 0.85),
@@ -864,7 +871,8 @@ export class UI {
   private journalPanel(): HTMLElement {
     const s = this.d.store;
     const ps = this.panelState;
-    const pools: [string, string][] = [['all', 'All pools'], ['meadow', 'Meadow'], ['reed', 'Reed'], ['moon', 'Moon'], ['rift', 'Rift Bloom']];
+    const jw = (ps.journalWorld ||= s.state.world);
+    const pools: [string, string][] = [['all', 'All pools'], ...(['meadow', 'reed', 'moon', 'rift'] as PoolId[]).map((p): [string, string] => [p, poolName(jw, p)])];
     const poolSel = h('select', { 'aria-label': 'Filter by pool', onchange: (e: Event) => { ps.journalPool = (e.target as HTMLSelectElement).value; this.renderPanel(); } });
     for (const [v, l] of pools) {
       const o = h('option', { value: v }, l);
@@ -877,9 +885,10 @@ export class UI {
       if (v === ps.journalFilter) o.selected = true;
       discSel.append(o);
     }
-    const found = s.discoveredCount();
+    const found = s.discoveredCount(jw);
+    const total = speciesIn(jw).length;
     const grid = h('div', { class: 'grid' });
-    const list = SPECIES.filter((sp) => (ps.journalPool === 'all' || sp.pool === ps.journalPool) && (ps.journalFilter === 'all' || (ps.journalFilter === 'found') === !!s.state.journal[sp.id]));
+    const list = speciesIn(jw).filter((sp) => (ps.journalPool === 'all' || sp.pool === ps.journalPool) && (ps.journalFilter === 'all' || (ps.journalFilter === 'found') === !!s.state.journal[sp.id]));
     if (!ps.journalSel || !list.some((x) => x.id === ps.journalSel)) ps.journalSel = list[0]?.id ?? '';
     for (const sp of list) {
       const j = s.state.journal[sp.id];
@@ -905,7 +914,7 @@ export class UI {
           'div',
           {},
           h('h3', {}, j ? sel.name : 'Undiscovered'),
-          h('p', { style: `color:${RARITY_COLOR[sel.rarity]};font-weight:800` }, `${RARITY_GLYPH[sel.rarity]} ${RARITY_LABEL[sel.rarity]} · ${POOLS_BY_ID[sel.pool].name}`),
+          h('p', { style: `color:${RARITY_COLOR[sel.rarity]};font-weight:800` }, `${RARITY_GLYPH[sel.rarity]} ${RARITY_LABEL[sel.rarity]} · ${poolName(sel.world ?? 1, sel.pool)}`),
           h('p', {}, `Hint: ${sel.hint}`),
           h('p', {}, `Weight range ${sel.minWeight}–${sel.maxWeight} kg`),
           h('p', {}, this.oddsText(sel.id)),
@@ -917,9 +926,17 @@ export class UI {
     const body = h(
       'div',
       {},
-      h('div', { class: 'cmp' }, `${found}/${SPECIES.length} species discovered`),
-      h('div', { class: 'progress-bar' }, h('div', { style: `width:${(found / SPECIES.length) * 100}%` })),
-      h('div', { class: 'toolbar' }, poolSel, discSel),
+      h('div', { class: 'cmp' }, `${found}/${total} species discovered${jw === 1 && found < total ? ' · catch them all to unlock a new world' : ''}`),
+      h('div', { class: 'progress-bar' }, h('div', { style: `width:${(found / total) * 100}%` })),
+      h(
+        'div',
+        { class: 'toolbar' },
+        s.isWorldUnlocked(2)
+          ? h('div', { class: 'chips' }, ...WORLDS.map((w) => h('button', { class: `chip${w.id === jw ? ' on' : ''}`, onclick: () => { ps.journalWorld = w.id; ps.journalPool = 'all'; this.renderPanel(); } }, w.name)))
+          : null,
+        poolSel,
+        discSel,
+      ),
       h('div', { class: 'journal' }, grid, detail),
     );
     return this.shell('Journal', body, undefined, undefined, 'book');
@@ -938,6 +955,7 @@ export class UI {
       isNight: true,
       eventOpen: true,
       unlockedPools: s.unlockedPermanentPools(),
+      world: sp.world ?? 1,
     };
     const elig = eligibleSpecies(ctx);
     const inTier = elig.filter((x) => x.rarity === sp.rarity).length || 1;
@@ -945,6 +963,40 @@ export class UI {
     const f = (v: number) => (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2));
     const where = sp.pool === 'rift' ? 'in the open rift' : sp.availability === 'night' ? 'per cast at night' : 'per cast here';
     return `Chance ${where}: ${f(pct(1))}% (×1.00 cast) · ${f(pct(2))}% (perfect cast)${sp.pool === 'rift' ? ' — includes the rift’s ×1.5 luck' : ''}.`;
+  }
+
+  /** Island cards: progress, travel, and what unlocks the next world. */
+  private worldsBody(): HTMLElement {
+    const s = this.d.store;
+    const wrap = h('div', { class: 'worlds' });
+    for (const w of WORLDS) {
+      const unlocked = s.isWorldUnlocked(w.id);
+      const here = s.state.world === w.id;
+      const found = s.discoveredCount(w.id);
+      const total = speciesIn(w.id).length;
+      const need = speciesIn(1).length - s.discoveredCount(1);
+      wrap.append(
+        h(
+          'div',
+          { class: `world-card${unlocked ? '' : ' locked'}${here ? ' here' : ''}`, style: `--e1:${w.theme[0]};--e2:${w.theme[1]}` },
+          h('div', { class: `world-art w${w.id}` }, h('span', { class: 'isle' }), h('span', { class: 'sun' }), here ? h('span', { class: 'here-tag' }, 'YOU ARE HERE') : null, unlocked ? null : iconEl('lock', 'world-lock')),
+          h('h3', {}, w.name),
+          h('p', { class: 'cmp' }, w.blurb),
+          h('div', { class: 'slots' }, h('span', {}, `Journal ${found}/${total}`), h('span', { class: 'bagbar wide' }, h('i', { style: `width:${(found / total) * 100}%` }))),
+          here
+            ? h('button', { class: 'btn', disabled: true }, 'You are here')
+            : unlocked
+              ? h('button', { class: 'btn primary', onclick: () => this.d.onTravel(w.id) }, iconEl('globe', 'bi'), `Travel to ${w.name}`)
+              : h('button', { class: 'btn', disabled: true }, `Catch ${need} more Sunny Isle fish`),
+        ),
+      );
+    }
+    return h('div', {}, h('p', { class: 'cmp' }, 'Each island has its own fish, pools and event. Your coins, bag, pets and rods travel with you. Catch every fish on Sunny Isle to unlock Starlight Atoll.'), wrap);
+  }
+
+  /** Full-screen card shown while the scene reloads around a new island. */
+  travelCard(name: string): void {
+    this.root.append(h('div', { class: 'travel-card' }, h('div', {}, iconEl('globe', 'travel-ico'), h('div', { class: 'travel-title' }, `Sailing to ${name}…`), h('div', { class: 'travel-sub' }, 'Your progress is saved'))));
   }
 
   /** Bobber styles (shop Style tab and pause Wardrobe). */

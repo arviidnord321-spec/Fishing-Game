@@ -849,3 +849,39 @@ input[type='range'] { width: min(220px, 40vw); accent-color: var(--yellow-2); he
 .reduced-motion .egg, .reduced-motion .hatch-card, .reduced-motion .hatch-card .rays, .reduced-motion .celebrate, .reduced-motion .float, .reduced-motion .day.today,
 .reduced-motion .icon-btn.gift.ready, .reduced-motion .badge-ready, .reduced-motion .panel, .reduced-motion .wlabel.prompt, .reduced-motion .fish-on,
 .reduced-motion .fish-on .bang, .reduced-motion .catch-card .badge-new, .reduced-motion .rarity-flash { animation: none !important; }
+
+/* ---- worlds ---- */
+.icon-btn.world { --b1: #7fd6ff; --b2: #2f7fe0; }
+.icon-btn.world .badge.dot { display: none; background: var(--red-2); color: #fff; }
+.icon-btn.world.ready { animation: wiggle 1.8s ease-in-out infinite; }
+.icon-btn.world.ready .badge.dot { display: grid; }
+.worlds { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.world-card {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 14px; border-radius: 20px;
+  background: linear-gradient(180deg, var(--e1), var(--e2)); border: 3px solid var(--ink); box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.5), 0 4px 0 var(--ink);
+}
+.world-card.here { box-shadow: inset 0 0 0 3px #fff, 0 0 0 4px var(--yellow-2), 0 4px 0 var(--ink); }
+.world-card.locked .world-art { filter: grayscale(0.7) brightness(0.7); }
+.world-card h3 { margin: 2px 0 0; font: 700 25px var(--font); text-shadow: var(--ts); }
+.world-card p.cmp { margin: 0; }
+.world-card .btn { margin-top: auto; }
+.world-art { position: relative; height: 120px; border-radius: 14px; overflow: hidden; border: 3px solid var(--ink); }
+.world-art.w1 { background: linear-gradient(180deg, #71ddf0 0 55%, #2fb5d6 55%); }
+.world-art.w2 { background: linear-gradient(180deg, #8f9dff 0%, #ffd3ec 55%, #5a7cf0 55%); }
+.world-art .isle { position: absolute; left: 18%; right: 18%; bottom: 14%; height: 36%; border-radius: 50% 50% 40% 40%; border: 3px solid var(--ink); }
+.world-art.w1 .isle { background: radial-gradient(circle at 50% 30%, #9be27a, #4fbf4a 70%); box-shadow: inset 0 -10px 0 #e9c995; }
+.world-art.w2 .isle { background: radial-gradient(circle at 50% 30%, #8ff0d0, #3fae96 70%); box-shadow: inset 0 -10px 0 #f7c6dc; }
+.world-art .sun { position: absolute; right: 12%; top: 12%; width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--ink); }
+.world-art.w1 .sun { background: #ffd23f; }
+.world-art.w2 .sun { background: #fff3a6; box-shadow: -8px 0 0 -2px #8f9dff inset; }
+.here-tag { position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 8px; font: 700 12px var(--font); background: linear-gradient(var(--yellow-1), var(--yellow-2)); border: 2.5px solid var(--ink); text-shadow: var(--ts-sm); }
+.world-lock { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; transform: translate(-50%, -50%); }
+.world-art .world-lock-wrap { position: absolute; inset: 0; display: grid; place-items: center; }
+.lv-tag.w2 { margin-left: 6px; background: linear-gradient(#ffb3e3, #8a5ae6); }
+.travel-card {
+  position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; text-align: center; pointer-events: auto;
+  background: radial-gradient(circle at 50% 45%, #8f9dff, #2c1f6a); animation: panelIn 0.35s ease-out;
+}
+.travel-ico { width: 96px; height: 96px; margin: 0 auto 10px; animation: spin 2.4s linear infinite; }
+.travel-title { font: 700 40px var(--font); text-shadow: var(--ts); }
+.travel-sub { font: 600 18px var(--font); text-shadow: var(--ts-sm); margin-top: 6px; }

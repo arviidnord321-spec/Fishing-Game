@@ -61,6 +61,11 @@ export const RODS: RodDef[] = [
   { id: 'stormline', name: 'Stormline', cost: 4000, maxWeight: 180, reelSpeed: 1.35, windowBonus: 0.03, color: '#5160c9', accent: '#ffe066', blurb: 'Charged line for heavy fighters.' },
   { id: 'starweaver', name: 'Starweaver', cost: 9500, maxWeight: 500, reelSpeed: 1.5, windowBonus: 0.04, color: '#2a2f5e', accent: '#ffd76e', blurb: 'Woven from night-sky thread.' },
   { id: 'riftcaller', name: 'Riftcaller', cost: 26000, maxWeight: 1200, reelSpeed: 1.65, windowBonus: 0.05, color: '#8a3cd1', accent: '#ff8be0', blurb: 'Hums when a portal is near.' },
+  // ---- Starlight Atoll (world 2) ----
+  { id: 'coralspire', name: 'Coralspire', cost: 60000, maxWeight: 2000, reelSpeed: 1.8, windowBonus: 0.06, color: '#ff7a8a', accent: '#ffe0e6', blurb: 'Grown from living coral.', world: 2 },
+  { id: 'tidecrown', name: 'Tidecrown', cost: 150000, maxWeight: 3500, reelSpeed: 1.95, windowBonus: 0.07, color: '#2fc6c0', accent: '#ffd76e', blurb: 'Worn smooth by a thousand tides.', world: 2 },
+  { id: 'nebulacast', name: 'Nebulacast', cost: 400000, maxWeight: 6000, reelSpeed: 2.1, windowBonus: 0.08, color: '#5a3fd1', accent: '#ff9de2', blurb: 'Its line glitters like a galaxy.', world: 2 },
+  { id: 'starforged', name: 'Starforged', cost: 1000000, maxWeight: 10000, reelSpeed: 2.3, windowBonus: 0.09, color: '#ffd23f', accent: '#ffffff', blurb: 'Hammered from a fallen star.', world: 2 },
 ];
 export const RODS_BY_ID: Record<string, RodDef> = Object.fromEntries(RODS.map((r) => [r.id, r]));
 

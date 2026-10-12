@@ -4,6 +4,8 @@ import { dailyReward, dailyStatus, generateQuests, rollEgg, streakFactor, xpToNe
 import { createRng } from '../src/logic/rng';
 import { newSave, parseSave, serializeSave } from '../src/logic/saveSchema';
 import { GameStore } from '../src/logic/store';
+import { speciesIn } from '../src/data/species';
+import { RODS } from '../src/data/balance';
 
 const rec = (id: string, rarity: 'common' | 'rare' = 'common') => ({ id, speciesId: rarity === 'rare' ? 'bubble-ram' : 'pebblefin', rarity, weight: rarity === 'rare' ? 20 : 2, modifier: 'normal' as const, matchFactor: 1, pool: 'meadow' as const });
 
@@ -245,5 +247,66 @@ describe('save v2', () => {
     const fixed = parseSave(JSON.stringify(raw));
     expect(fixed.kind === 'ok' && fixed.data.pets['not-a-pet']).toBeUndefined();
     expect(fixed.kind === 'ok' && fixed.data.equippedPets.includes('not-a-pet')).toBe(false);
+  });
+});
+
+describe('worlds', () => {
+  const finishWorld1 = (s: GameStore) => {
+    for (const sp of speciesIn(1)) s.state.journal[sp.id] = { count: 1, maxWeight: sp.minWeight, maxValue: 1, modifiers: ['normal'] };
+  };
+
+  it('Starlight Atoll unlocks only after every Sunny Isle species is caught, and announces once', () => {
+    const s = new GameStore();
+    const events: string[] = [];
+    s.subscribe((e) => events.push(e.type));
+    expect(s.isWorldUnlocked(2)).toBe(false);
+    expect(s.travel(2).ok).toBe(false);
+    finishWorld1(s);
+    delete s.state.journal['rift-leviathan'];
+    expect(s.isWorldUnlocked(2)).toBe(false);
+    finishWorld1(s);
+    s.debugAddCoins(1);
+    expect(events.filter((e) => e === 'worldUnlocked').length).toBe(1);
+    s.debugAddCoins(1);
+    expect(events.filter((e) => e === 'worldUnlocked').length).toBe(1);
+    expect(s.travel(2).ok).toBe(true);
+    expect(s.state.world).toBe(2);
+    expect(s.discoveredCount()).toBe(0);
+    expect(s.travel(1).ok).toBe(true);
+  });
+
+  it('world 2 rods stay locked until the world opens, then follow the rod chain', () => {
+    const s = new GameStore();
+    s.state.coins = 10_000_000;
+    s.state.ownedRods = RODS.filter((r) => !r.world).map((r) => r.id);
+    expect(s.rodStatus('coralspire')).toBe('locked');
+    finishWorld1(s);
+    expect(s.rodStatus('coralspire')).toBe('buy');
+    expect(s.rodStatus('tidecrown')).toBe('locked');
+    expect(s.buyRod('coralspire').ok).toBe(true);
+    expect(s.rodStatus('tidecrown')).toBe('buy');
+  });
+
+  it('pool unlocks in world 2 use that world’s rods and species', () => {
+    const s = new GameStore();
+    finishWorld1(s);
+    s.travel(2);
+    expect(s.isPoolUnlocked('reed')).toBe(false);
+    s.state.ownedRods.push('coralspire', 'tidecrown');
+    for (const sp of speciesIn(2).filter((x) => x.pool === 'meadow').slice(0, 4)) s.state.journal[sp.id] = { count: 1, maxWeight: 1, maxValue: 1, modifiers: ['normal'] };
+    expect(s.isPoolUnlocked('reed')).toBe(true);
+    expect(s.isPoolUnlocked('moon')).toBe(false);
+  });
+
+  it('saves keep the world, but a forged world-2 save without the journal falls back to world 1', () => {
+    const s = new GameStore();
+    finishWorld1(s);
+    s.travel(2);
+    const ok = parseSave(serializeSave(s.state));
+    expect(ok.kind === 'ok' && ok.data.world).toBe(2);
+    const forged = JSON.parse(serializeSave(newSave()));
+    forged.world = 2;
+    const r = parseSave(JSON.stringify(forged));
+    expect(r.kind === 'ok' && r.data.world).toBe(1);
   });
 });

@@ -1,5 +1,6 @@
 import './ui/styles.css';
 import { GameApp } from './game/app';
+import { applyWorldTheme } from './game/worldTheme';
 import { GameStore } from './logic/store';
 import { createPlatform } from './platform/platform';
 import { SaveRepository } from './platform/saveRepository';
@@ -38,6 +39,7 @@ async function boot(): Promise<void> {
   platform.loadingStart();
   const repo = new SaveRepository(platform.storage());
   const loaded = await repo.load();
+  applyWorldTheme(loaded.data?.world ?? 1);
   const store = new GameStore(loaded.data);
   store.onPersist = (s) => repo.save(s);
 

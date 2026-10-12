@@ -106,6 +106,7 @@ export class FishingController {
       isNight: ctx.isNight,
       eventOpen: pool === 'rift' && ctx.event.phase === 'open',
       unlockedPools: this.store.unlockedPermanentPools(),
+      world: this.store.state.world,
       luckMultiplier: this.store.luckMultiplier(),
       tutorial: !this.store.state.tutorial.firstCatch,
     };

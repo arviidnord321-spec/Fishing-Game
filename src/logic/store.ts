@@ -1,6 +1,7 @@
 import { BAG_CAPACITY, BOBBERS, RODS, RODS_BY_ID, UPGRADES_BY_ID } from '../data/balance';
-import { SPECIES } from '../data/species';
-import type { CatchRecord, LureId, PermanentPoolId, PoolId, RodDef, UpgradeTrack } from '../data/types';
+import { speciesIn } from '../data/species';
+import { WORLD_POOL_UNLOCKS, poolName } from '../data/worlds';
+import type { CatchRecord, LureId, PermanentPoolId, PoolId, RodDef, UpgradeTrack, WorldId } from '../data/types';
 import { BOOSTS_BY_ID, EGGS_BY_ID, PET_MAX_LEVEL, PET_SLOT_COSTS, PETS, PETS_BY_ID, PITY, DUPLICATE_REFUND, petBonusAt, type BoostId, type EggId, type PetBonus } from '../data/pets';
 import { saleValue } from './catchResolver';
 import { dailyReward, dailyStatus, generateQuests, isRarePlus, levelReward, rollEgg, streakFactor, xpForCatch, xpToNext, type Quest, type QuestKind, type Reward } from './meta';
@@ -10,6 +11,7 @@ import { newSave, type SaveData, type Settings } from './saveSchema';
 export type StoreEvent =
   | { type: 'changed' }
   | { type: 'poolUnlocked'; pool: PoolId }
+  | { type: 'worldUnlocked'; world: WorldId }
   | { type: 'purchase'; what: string }
   | { type: 'sale'; coins: number; count: number }
   | { type: 'levelUp'; level: number; reward: Reward }
@@ -37,10 +39,6 @@ export interface SaleReceipt {
   reason?: string;
 }
 
-const POOL_UNLOCKS: Record<'reed' | 'moon', { rod: string; pool: PermanentPoolId; species: number }> = {
-  reed: { rod: 'coppercoil', pool: 'meadow', species: 4 },
-  moon: { rod: 'stormline', pool: 'reed', species: 4 },
-};
 
 /**
  * Authoritative durable game state. UI dispatches actions here; it never mutates money or
@@ -91,26 +89,41 @@ export class GameStore {
   meadowRadius(): number {
     return 3.2 + 0.35 * this.state.upgrades.poolGrowth;
   }
-  discoveredIn(pool: PoolId): number {
-    return SPECIES.filter((s) => s.pool === pool && this.state.journal[s.id]).length;
+  /** Species discovered in a pool of the current world. */
+  discoveredIn(pool: PoolId, world: WorldId = this.state.world): number {
+    return speciesIn(world).filter((s) => s.pool === pool && this.state.journal[s.id]).length;
   }
-  discoveredCount(): number {
-    return SPECIES.filter((s) => this.state.journal[s.id]).length;
+  /** Species discovered in a world (default: the current one). */
+  discoveredCount(world: WorldId = this.state.world): number {
+    return speciesIn(world).filter((s) => this.state.journal[s.id]).length;
+  }
+  /** Starlight Atoll opens once every Sunny Isle species is in the journal. */
+  isWorldUnlocked(world: WorldId): boolean {
+    return world === 1 || this.discoveredCount(1) >= speciesIn(1).length;
+  }
+  /** Travel to another unlocked island (the scene reloads around the new world). */
+  travel(world: WorldId): ActionResult {
+    if (!this.isWorldUnlocked(world)) return { ok: false, reason: 'Catch every Sunny Isle fish to unlock Starlight Atoll.' };
+    if (this.state.world === world) return { ok: false, reason: 'You are already there.' };
+    this.state.world = world;
+    this.state.nextTx++;
+    this.commit();
+    return { ok: true };
   }
 
   isPoolUnlocked(pool: PoolId): boolean {
     if (pool === 'meadow' || pool === 'rift') return true;
-    const req = POOL_UNLOCKS[pool];
+    const req = WORLD_POOL_UNLOCKS[this.state.world][pool];
     return this.state.ownedRods.includes(req.rod) && this.discoveredIn(req.pool) >= req.species;
   }
   unlockProgress(pool: 'reed' | 'moon'): { rodOwned: boolean; rodName: string; found: number; need: number; fromPool: string } {
-    const req = POOL_UNLOCKS[pool];
+    const req = WORLD_POOL_UNLOCKS[this.state.world][pool];
     return {
       rodOwned: this.state.ownedRods.includes(req.rod),
       rodName: RODS_BY_ID[req.rod].name,
       found: this.discoveredIn(req.pool),
       need: req.species,
-      fromPool: req.pool === 'meadow' ? 'Meadow' : 'Reed',
+      fromPool: poolName(this.state.world, req.pool).replace(/ Pool$/, ''),
     };
   }
   unlockedPermanentPools(): PermanentPoolId[] {
@@ -118,11 +131,16 @@ export class GameStore {
   }
 
   private checkUnlocks(): void {
+    const announced = this.state.world === 1 ? this.state.announcedPools : this.state.world2Pools;
     for (const p of ['reed', 'moon'] as const) {
-      if (this.isPoolUnlocked(p) && !this.state.announcedPools.includes(p)) {
-        this.state.announcedPools.push(p);
+      if (this.isPoolUnlocked(p) && !announced.includes(p)) {
+        announced.push(p);
         this.emit({ type: 'poolUnlocked', pool: p });
       }
+    }
+    if (!this.state.world2Announced && this.isWorldUnlocked(2)) {
+      this.state.world2Announced = true;
+      this.emit({ type: 'worldUnlocked', world: 2 });
     }
   }
 
@@ -424,6 +442,7 @@ export class GameStore {
     if (s.ownedRods.includes(id)) return 'owned';
     const idx = RODS.findIndex((r) => r.id === id);
     if (idx > 0 && !s.ownedRods.includes(RODS[idx - 1].id)) return 'locked';
+    if (RODS[idx].world === 2 && !this.isWorldUnlocked(2)) return 'locked';
     return s.coins >= RODS[idx].cost ? 'buy' : 'poor';
   }
   buyRod(id: string): ActionResult {

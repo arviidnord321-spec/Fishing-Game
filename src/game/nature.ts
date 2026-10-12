@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Rng } from '../logic/rng';
+import { PALETTE } from './materials';
 
 /** Shared wind state for every swaying material (one uniform update per frame). */
 export const WIND = {
@@ -112,8 +113,8 @@ function lin2srgb(c: number): number {
 function tuftGeometry(): THREE.BufferGeometry {
   const pos: number[] = [];
   const col: number[] = [];
-  const base = new THREE.Color('#5cb455');
-  const tip = new THREE.Color('#c6f28c');
+  const base = new THREE.Color(PALETTE.grassBlade);
+  const tip = new THREE.Color(PALETTE.grassTip);
   const blades = 5;
   for (let i = 0; i < blades; i++) {
     const a = (i / blades) * Math.PI * 2 + i * 0.7;

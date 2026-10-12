@@ -1,7 +1,7 @@
 import { BAG_CAPACITY, BOBBERS, MODIFIERS_BY_ID, RODS, RODS_BY_ID, UPGRADES_BY_ID } from '../data/balance';
 import { SPECIES_BY_ID } from '../data/species';
 import { BOOSTS, EGGS, PET_MAX_LEVEL, PET_SLOT_COSTS, PETS_BY_ID, type BoostId, type EggId } from '../data/pets';
-import type { CatchRecord, LureId, ModifierId, PoolId, UpgradeTrack } from '../data/types';
+import type { CatchRecord, LureId, ModifierId, PoolId, UpgradeTrack, WorldId } from '../data/types';
 import type { DailyState, Quest, QuestKind } from './meta';
 
 export const SAVE_VERSION = 2;
@@ -72,6 +72,13 @@ export interface SaveData {
   streak: number;
   bestStreak: number;
   totalCaught: number;
+  // ---- worlds ----
+  /** Island the player is on. */
+  world: WorldId;
+  /** The 'new world unlocked' celebration has been shown. */
+  world2Announced: boolean;
+  /** Starlight Atoll pools already announced as unlocked. */
+  world2Pools: PoolId[];
 }
 
 export const DEFAULT_BINDINGS: Record<string, string> = {
@@ -127,6 +134,9 @@ export function newSave(): SaveData {
     streak: 0,
     bestStreak: 0,
     totalCaught: 0,
+    world: 1,
+    world2Announced: false,
+    world2Pools: ['meadow'],
   };
 }
 
@@ -344,6 +354,17 @@ export function parseSave(rawText: string | null): LoadOutcome {
   d.streak = finiteNonNegInt(raw.streak) ?? 0;
   d.bestStreak = finiteNonNegInt(raw.bestStreak) ?? 0;
   d.totalCaught = finiteNonNegInt(raw.totalCaught) ?? 0;
+  d.world2Announced = raw.world2Announced === true;
+  if (Array.isArray(raw.world2Pools)) {
+    d.world2Pools = raw.world2Pools.filter((p): p is PoolId => p === 'meadow' || p === 'reed' || p === 'moon');
+    if (!d.world2Pools.includes('meadow')) d.world2Pools.unshift('meadow');
+  }
+  // only stay on Starlight Atoll if the save really unlocked it (every world-1 species found)
+  if (raw.world === 2) {
+    const all = Object.values(SPECIES_BY_ID).filter((sp) => (sp.world ?? 1) === 1).every((sp) => d.journal[sp.id]);
+    if (all) d.world = 2 as WorldId;
+    else repairs.push('world');
+  }
 
   return { kind: 'ok', data: d, repairs };
 }

@@ -34,6 +34,7 @@ const PATHS: Record<string, string> = {
   quest: `<rect x="10" y="7" width="28" height="34" rx="5" fill="#fff3d6" ${S}/><path d="M16 17h16M16 24h16M16 31h10" ${S}/><path d="M33 4l4 4" stroke="#ff5f7e" stroke-width="3"/>`,
   sparkle: `<path d="M24 5c2 11 8 17 19 19-11 2-17 8-19 19-2-11-8-17-19-19 11-2 17-8 19-19z" fill="#fff3a6" ${S}/>`,
   cart: `<path d="M5 9h6l5 21h22l4-15H13" fill="none" ${S}/><path d="M14 15h28l-4 15H16z" fill="#7ee081" ${S}/><circle cx="19" cy="38" r="3.5" fill="#fff" ${S}/><circle cx="34" cy="38" r="3.5" fill="#fff" ${S}/>`,
+  globe: `<circle cx="24" cy="24" r="17" fill="#4fc3ff" ${S}/><path d="M12 15c5 2 7 6 5 10s-1 8 3 10M30 9c-2 4 0 7 4 8s6 5 4 9M24 41c2-4 6-5 9-4" fill="#7ee081" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/><path d="M15 14a12 12 0 0 1 8-5" stroke="#d6f4ff" stroke-width="2.6" fill="none" stroke-linecap="round"/>`,
   plus: `<path d="M24 11v26M11 24h26" stroke="${INK}" stroke-width="11" stroke-linecap="round"/><path d="M24 11v26M11 24h26" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round"/>`,
 };
 

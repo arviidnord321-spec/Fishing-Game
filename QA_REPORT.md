@@ -1,6 +1,58 @@
 # QA report
 
-## Round 6: 12 eggs (latest)
+## Round 7: pool ambience, Starlight Atoll, pet portraits, funk music (latest)
+
+**Pools** (`src/game/poolFx.ts`, `src/game/water.ts`)
+- Every 45–95 s, each pool slowly shifts teal → deep blue (hold) → violet (hold) → back. The pools
+  are staggered so they never all change at once.
+- 34 glowing motes drift over each pool. They are drawn in one call, animated in the vertex
+  shader, and their colour follows the mood.
+- Every 5–14 s a fish leaps out of a pool you're not fishing in, with splashes, rings and
+  ripples.
+- Lily pads with flowers float near the rims.
+- The QA build has a "Pool mood" debug button.
+
+**Starlight Atoll** (`src/data/worlds.ts`, `src/game/worldTheme.ts`)
+- Unlocks once all 18 Sunny Isle species are in the journal. There is a one-time
+  "NEW WORLD UNLOCKED!" banner, and the World button wiggles.
+- It has 18 new species, 4 new rods, renamed pools with their own unlock rules, and its own event
+  legendary.
+- The island is themed in pastel twilight colours.
+- Travel is gated: saves load back into world 2 only if the journal really unlocked it.
+- The journal has island tabs.
+- The QA build has a "Finish journal" debug button.
+
+**Pets.** Your painted portraits (and silhouettes) from the redesign sheet replace the 3D renders
+in pet cards, slots and the hatch reveal.
+
+**Music.** The old pentatonic tune is replaced by a funk groove:
+- a 104 BPM lookahead sequencer;
+- kick, snare with ghost notes, and swung hats;
+- a popping synth bass;
+- wah "chicken-scratch" stabs and an electric-piano pad over a Dm9–G9–Fmaj9–Em11 loop;
+- melody licks.
+
+At night it plays laid back at 92 BPM. An offline render (`window.__riftMusic` in QA builds) peaks
+at 0.46 by day and 0.27 at night, with no clipping.
+
+**Verification**
+- 93/93 unit tests pass. New ones cover:
+  - world separation in the catch resolver;
+  - each world-2 pool being landable with the rod that unlocks it;
+  - unlock and travel rules, announcing the unlock once, and world-2 rod gating;
+  - per-world pool unlocks;
+  - save round-trip, and the forged-save fallback.
+- Browser runs with no console errors:
+  - the full world flow: locked panel → Finish journal → banner → travel card → atoll → new
+    rods → 3 catches of new species → journal tabs;
+  - `qa-pets`, `qa-play`, `qa-event` and `ui-tour`.
+- Start view: 125 → 130 draw calls.
+- FPS on CPU SwiftShader, interleaved runs: 10.9 vs 11.5 average, about 5% lower, which is
+  borderline noise. Not measured on a real GPU.
+
+---
+
+## Round 6: 12 eggs
 
 The egg lineup went from 3 to 12, drawn after the owner's egg sheet as SVG (`src/ui/eggArt.ts`).
 

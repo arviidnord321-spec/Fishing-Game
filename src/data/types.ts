@@ -1,6 +1,9 @@
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 export const RARITIES: Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 
+/** 1 = Sunny Isle (start), 2 = Starlight Atoll (unlocked by completing world 1's journal). */
+export type WorldId = 1 | 2;
+
 export type PermanentPoolId = 'meadow' | 'reed' | 'moon';
 export type PoolId = PermanentPoolId | 'rift';
 export type Availability = 'always' | 'night' | 'event';
@@ -32,7 +35,9 @@ export type FishFeature =
 export interface SpeciesDef {
   id: string;
   name: string;
+  /** Pool slot inside its world (default world 1). */
   pool: PoolId;
+  world?: WorldId;
   rarity: Rarity;
   minWeight: number;
   maxWeight: number;
@@ -56,6 +61,8 @@ export interface RodDef {
   color: string;
   accent: string;
   blurb: string;
+  /** Rods from world 2 can only be bought once that world is unlocked. */
+  world?: WorldId;
 }
 
 export interface ModifierDef {

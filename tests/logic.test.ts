@@ -129,9 +129,21 @@ describe('catch resolver', () => {
   it('every species is reachable with some rod and condition', () => {
     const all: PermanentPoolId[] = ['meadow', 'reed', 'moon'];
     for (const s of SPECIES) {
-      const ctx = baseCtx({ pool: s.pool, rod: RODS_BY_ID.riftcaller, isNight: true, eventOpen: true, unlockedPools: all });
+      const ctx = baseCtx({ pool: s.pool, rod: s.world === 2 ? RODS_BY_ID.starforged : RODS_BY_ID.riftcaller, isNight: true, eventOpen: true, unlockedPools: all, world: s.world ?? 1 });
       expect(eligibleSpecies(ctx).map((x) => x.id)).toContain(s.id);
     }
+  });
+
+  it('world 2 species never appear on Sunny Isle, and vice versa', () => {
+    const w1 = eligibleSpecies(baseCtx({ pool: 'meadow', rod: RODS_BY_ID.starforged, isNight: true }));
+    expect(w1.every((x) => (x.world ?? 1) === 1)).toBe(true);
+    const w2 = eligibleSpecies(baseCtx({ pool: 'meadow', rod: RODS_BY_ID.starforged, isNight: true, world: 2 }));
+    expect(w2.length).toBeGreaterThan(0);
+    expect(w2.every((x) => x.world === 2)).toBe(true);
+    // every world-2 pool has at least one fish the previous rod can land, so progress never stalls
+    expect(eligibleSpecies(baseCtx({ pool: 'meadow', rod: RODS_BY_ID.riftcaller, world: 2 })).length).toBeGreaterThan(0);
+    expect(eligibleSpecies(baseCtx({ pool: 'reed', rod: RODS_BY_ID.tidecrown, world: 2 })).length).toBeGreaterThan(0);
+    expect(eligibleSpecies(baseCtx({ pool: 'moon', rod: RODS_BY_ID.nebulacast, world: 2 })).length).toBeGreaterThan(0);
   });
 
   it('night-only species are excluded by day', () => {

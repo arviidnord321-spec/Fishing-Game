@@ -7,6 +7,7 @@ import { bakeStatic } from './bake';
 import { applyWind, GrassField, terrainMaterial, WIND } from './nature';
 import type { QualityLevel } from './quality';
 import { Clouds, shoreFoam } from './scenery';
+import { lilyPads, PoolAmbience } from './poolFx';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createSkyMaterial, createWaterMaterial, waterGeometry, type WaterMaterial } from './water';
 
@@ -79,6 +80,7 @@ export class World {
   private level: QualityLevel | null = null;
   private time = 0;
   private clouds = new Clouds();
+  readonly ambience: PoolAmbience;
   private foam!: THREE.Mesh;
 
   constructor() {
@@ -87,12 +89,12 @@ export class World {
     sky.renderOrder = -10;
     this.scene.add(sky);
 
-    this.hemi = new THREE.HemisphereLight('#e8fbff', '#5d8a4f', 1.6);
+    this.hemi = new THREE.HemisphereLight(PALETTE.hemiSky, PALETTE.hemiGround, 1.6);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight('#fff3dc', 2.2);
     this.sun.position.set(-20, 40, 18);
     this.scene.add(this.sun);
-    this.scene.fog = new THREE.Fog('#bfeef8', 70, 190);
+    this.scene.fog = new THREE.Fog(PALETTE.fog, 70, 190);
 
     this.buildSea();
     this.buildIsland();
@@ -111,7 +113,19 @@ export class World {
     this.buildLamps();
     this.buildStars();
     this.beacon = this.buildBeacon();
+    for (const p of POOLS) {
+      if (p.id === 'rift') continue;
+      const v = this.pools.get(p.id)!;
+      for (const o of lilyPads(p.x, p.z, p.radius, v.surfaceY, p.x * 13 + p.z)) this.staticRoot.add(o);
+    }
     bakeStatic(this.staticRoot, this.scene);
+    this.ambience = new PoolAmbience(
+      POOLS.filter((p) => p.id !== 'rift').map((p) => {
+        const v = this.pools.get(p.id)!;
+        return { id: p.id, x: p.x, z: p.z, radius: () => v.radius, surfaceY: v.surfaceY };
+      }),
+    );
+    this.scene.add(this.ambience.group);
   }
 
   // ---------------------------------------------------------------- terrain
@@ -157,7 +171,7 @@ export class World {
   }
 
   private buildSea(): void {
-    this.seaMat = new THREE.MeshLambertMaterial({ color: '#2fb5d6' });
+    this.seaMat = new THREE.MeshLambertMaterial({ color: PALETTE.sea });
     this.sea = new THREE.Mesh(new THREE.CircleGeometry(380, 48).rotateX(-Math.PI / 2), this.seaMat);
     this.sea.position.y = -1.6;
     this.scene.add(this.sea);
@@ -319,6 +333,7 @@ export class World {
     this.grass.setCount(level.grass);
     // shore foam is a wide transparent band: medium/high only (fill-rate on weak GPUs)
     this.foam.visible = level.extras;
+    this.ambience?.setVisible(level.extras || level.name === 'low');
     if (this.flowerMesh) this.flowerMesh.count = Math.min(level.flowers, this.flowerMesh.instanceMatrix.count);
     WIND.uWind.value = level.wind ? 1 : 0;
     // low preset: plain ground color instead of the painted terrain texture
@@ -637,10 +652,10 @@ export class World {
       applyWind(m, base, amp);
       return m;
     };
-    inst(canopyGeo, windy('#3fae5b', -1, 0.012), trees);
-    inst(coneGeo, windy('#2f8f58', -1.1, 0.012), pines);
+    inst(canopyGeo, windy(PALETTE.canopy, -1, 0.012), trees);
+    inst(coneGeo, windy(PALETTE.pine, -1.1, 0.012), pines);
     inst(rockGeo, flat(PALETTE.stone), rocks);
-    inst(bushGeo, windy('#4fbf5f', -0.6, 0.05), bushes);
+    inst(bushGeo, windy(PALETTE.bush, -0.6, 0.05), bushes);
     const fl = new THREE.InstancedMesh(flowerGeo, new THREE.MeshLambertMaterial({ flatShading: true }), flowers.length);
     flowers.forEach((f, i) => {
       fl.setMatrixAt(i, f.m);
@@ -740,6 +755,8 @@ export class World {
     WIND.uTime.value = this.time;
     const n = nightBlend;
     this.clouds.update(dt, n);
+    this.ambience.update(dt, this.time, false);
+    for (const p of this.pools.values()) if (p.id !== 'rift') p.mat.uniforms.uMood.value = this.ambience.mood(p.id);
     const fs = 1 + Math.sin(this.time * 1.1) * 0.006;
     this.foam.scale.set(fs, 1, fs);
     (this.foam.material as THREE.MeshBasicMaterial).opacity = 1 - 0.45 * n;
@@ -751,9 +768,9 @@ export class World {
     this.sun.intensity = 2.2 - 1.45 * n;
     this.sun.color.set('#fff3dc').lerp(new THREE.Color('#9fb4ff'), n);
     this.hemi.intensity = 1.6 - 0.55 * n;
-    this.hemi.color.set('#e8fbff').lerp(new THREE.Color('#8a92e6'), n);
-    this.hemi.groundColor.set('#5d8a4f').lerp(new THREE.Color('#3b3d75'), n);
-    this.seaMat.color.set('#2fb5d6').lerp(new THREE.Color('#1d3f80'), n);
+    this.hemi.color.set(PALETTE.hemiSky).lerp(new THREE.Color('#8a92e6'), n);
+    this.hemi.groundColor.set(PALETTE.hemiGround).lerp(new THREE.Color('#3b3d75'), n);
+    this.seaMat.color.set(PALETTE.sea).lerp(new THREE.Color(PALETTE.seaNight), n);
     (this.stars.material as THREE.PointsMaterial).opacity = n * 0.9;
     this.lampGlowMat.opacity = 0.05 + 0.3 * n;
     this.bulbMat.color.set(n > 0.3 ? PALETTE.lamp : '#fff6dc');

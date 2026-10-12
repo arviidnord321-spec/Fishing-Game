@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { BAG_CAPACITY, BALANCE, BOBBERS, LANDMARKS, LURES, POOLS_BY_ID, RODS, RODS_BY_ID, UPGRADES } from '../data/balance';
-import { SPECIES, SPECIES_BY_ID } from '../data/species';
-import type { LureId, PoolId } from '../data/types';
+import { SPECIES_BY_ID, speciesIn } from '../data/species';
+import { WORLDS_BY_ID } from '../data/worlds';
+import type { LureId, PoolId, WorldId } from '../data/types';
 import { dayNightAt } from '../logic/dayNight';
 import { EventDirector, type EventInfo, type EventPhase } from '../logic/eventDirector';
 import { FishingController, type FishEvent } from '../logic/fishing';
@@ -26,6 +27,7 @@ import { PetFollowers } from './petModels';
 import { dayKey } from '../logic/meta';
 import { rewardText } from '../ui/metaUi';
 import { BOOSTS, PETS_BY_ID, type EggId } from '../data/pets';
+import { petPortrait } from '../ui/petPortraits';
 import { streakFactor as streakFactorOf } from '../logic/meta';
 import { World } from './world';
 
@@ -156,10 +158,16 @@ export class GameApp {
     this.fishing = new FishingController(store, createRng((Date.now() ^ 0x9e3779b9) >>> 0));
     this.particles = new Particles(this.world.scene);
     this.rings = new Rings(this.world.scene);
+    this.world.ambience.onSplash = (x, y, z, pool, big) => {
+      this.particles.splash(x, y + 0.03, z, big ? 26 : 14, big ? 0.25 : 0.15);
+      this.rings.spawn(x, y, z, big ? 0.9 : 0.6, 0.7);
+      this.world.ripple(pool as PoolId, x, z, big ? 1 : 0.7);
+    };
     this.npcs = new Npcs(this.world, this.particles);
     this.thumbs = new ThumbnailRenderer(this.renderer);
     this.pets = new PetFollowers(this.world.scene);
     if (DEBUG) (window as unknown as { __riftPetThumb: (id: string) => string }).__riftPetThumb = (id) => this.thumbs.pet(id, false);
+    if (DEBUG) (window as unknown as { __riftMusic: typeof AudioManager.renderPreview }).__riftMusic = (sec, night) => AudioManager.renderPreview(sec, night);
 
     // bobber + line
     this.bobber = new THREE.Group();
@@ -201,7 +209,7 @@ export class GameApp {
       onSkipTutorial: () => {
         this.store.markTutorial('skipped');
       },
-      petThumb: (id, sil) => this.thumbs.pet(id, sil),
+      petThumb: (id, sil) => petPortrait(id, sil) ?? this.thumbs.pet(id, sil),
       onHatch: (egg: EggId) => this.hatch(egg),
       onClaimDaily: () => {
         const r = this.store.claimDaily(dayKey(new Date()));
@@ -210,6 +218,7 @@ export class GameApp {
           this.ui.celebrate(`Day ${r.day} reward!`, rewardText(r.reward), 'reward');
         } else if (!r.ok) this.ui.toast(r.reason, 'bad');
       },
+      onTravel: (world) => this.travel(world),
       onClaimQuest: (id) => {
         const r = this.store.claimQuest(id);
         if (!r.ok) this.ui.toast(r.reason, 'bad');
@@ -222,6 +231,11 @@ export class GameApp {
             '+20000¢': () => this.store.debugAddCoins(20000),
             'Rift soon': () => this.events.debugTriggerSoon(this.store.state.worldClock),
             'Skip 60s': () => this.store.tickClock(60),
+            'Pool mood': () => this.world.ambience.debugShift(),
+            'Finish journal': () => {
+              for (const sp of speciesIn(this.store.state.world)) this.store.state.journal[sp.id] ??= { count: 1, maxWeight: sp.minWeight, maxValue: sp.baseValue, modifiers: ['normal'] };
+              this.store.debugAddCoins(0);
+            },
             'Giant reveal': () => {
               this.fishing.pool = 'meadow';
               this.bobberPos.set(0, -0.2, 5.5);
@@ -268,6 +282,10 @@ export class GameApp {
       if (e.type === 'levelUp') {
         this.audio.play('upgrade');
         this.ui.celebrate(`LEVEL ${e.level}!`, rewardText(e.reward), 'level', 3600);
+      }
+      if (e.type === 'worldUnlocked') {
+        this.audio.play('chime');
+        this.ui.celebrate('NEW WORLD UNLOCKED!', `${WORLDS_BY_ID[e.world].name} awaits — open the World menu to travel`, 'world', 5200);
       }
       if (e.type === 'questComplete') {
         this.audio.play('chime');
@@ -560,7 +578,7 @@ export class GameApp {
     this.lastEventIndex = info.index;
     const rift = this.world.pools.get('rift')!;
     if (ph === 'notice') {
-      this.ui.toast('A Rift Bloom is gathering in the south clearing!', 'cyan', 3000);
+      this.ui.toast(`A ${POOLS_BY_ID.rift.name} is gathering in the south clearing!`, 'cyan', 3000);
       this.audio.play('chime');
     }
     if (ph === 'opening') {
@@ -577,7 +595,7 @@ export class GameApp {
       }
     }
     if (ph === 'open') {
-      this.ui.toast('RIFT BLOOM IS OPEN!', 'big', 2400);
+      this.ui.toast(`${POOLS_BY_ID.rift.name.toUpperCase()} IS OPEN!`, 'big', 2400);
       this.audio.play('chime');
       this.particles.sparkle(rift.x, 1, rift.z, 120, rift.radius * 1.6, ['#ff8be0', '#ffd23f', '#7ff3ff']);
     }
@@ -656,7 +674,7 @@ export class GameApp {
         this.startReveal(e.record.speciesId, e.record.modifier, e.record.weight, e.record.rarity);
         this.ui.showCatch({ ...e.record, value: e.value, newSpecies: e.newSpecies, newRecord: e.newRecord, xp: e.xp, bagUsed: this.store.bagUsed, bagCap: this.store.capacity });
         if (e.xp) this.ui.floatText(`+${e.xp} XP`, this.container.clientWidth / 2, this.container.clientHeight * 0.42, 'xp');
-        if (e.newSpecies && (e.record.speciesId === 'rift-leviathan' || this.store.discoveredCount() === SPECIES.length)) this.platform.happytime();
+        if (e.newSpecies && (e.record.speciesId === 'rift-leviathan' || this.store.discoveredCount() === speciesIn(this.store.state.world).length)) this.platform.happytime();
         break;
       case 'escaped': {
         this.fishOnUntil = 0;
@@ -790,6 +808,24 @@ export class GameApp {
   }
 
   /** Open an egg: the store does the transaction; this adds sound, sparkle and platform hooks. */
+  /** Save, then rebuild the scene around the other island (a quick reload behind a travel card). */
+  private async travel(world: WorldId): Promise<void> {
+    if (this.fishing.busy) {
+      this.ui.toast('Finish your catch first.', 'bad');
+      return;
+    }
+    const r = this.store.travel(world);
+    if (!r.ok) {
+      this.ui.toast(r.reason, 'bad', 2600);
+      return;
+    }
+    this.ui.close();
+    this.ui.travelCard(WORLDS_BY_ID[world].name);
+    this.audio.play('upgrade');
+    await this.repo.flush();
+    setTimeout(() => location.reload(), 900);
+  }
+
   private hatch(egg: EggId) {
     const r = this.store.hatch(egg, this.metaRng);
     if (r.ok && r.petId) {
@@ -895,6 +931,7 @@ export class GameApp {
     ch.update(dt, s.settings.reducedMotion);
     ch.root.updateMatrixWorld(true);
 
+    this.world.ambience.busyPool = this.fishing.busy ? this.fishing.pool : null;
     this.world.update(dt, dn.nightBlend, ev.openness, ev.phase === 'notice');
     this.world.cullGrass(this.cam.camera.position);
     this.npcs.update(dt, ev.openness, s.settings.reducedMotion);
@@ -1031,11 +1068,11 @@ export class GameApp {
     const s = this.store;
     const t = s.state.tutorial;
     const lureName = (l: LureId) => LURES.find((x) => x.id === l)!;
-    if (ev.phase === 'notice') return { text: `Rift Bloom opens in ${fmtTime(ev.remaining)}!`, sub: 'Follow the beacon to the south clearing', event: true };
-    if (ev.phase === 'opening') return { text: 'The Rift Bloom is opening…', event: true };
+    if (ev.phase === 'notice') return { text: `${POOLS_BY_ID.rift.name} opens in ${fmtTime(ev.remaining)}!`, sub: 'Follow the beacon to the south clearing', event: true };
+    if (ev.phase === 'opening') return { text: `The ${POOLS_BY_ID.rift.name} is opening…`, event: true };
     if (ev.phase === 'open') {
       const c = lureName(ev.current);
-      return { text: `RIFT BLOOM · ${fmtTime(ev.remaining)} left · luck ×${BALANCE.event.riftLuck}`, sub: `Current: ${c.glyph} ${c.name} — match your lure for +10% value`, event: true };
+      return { text: `${POOLS_BY_ID.rift.name.toUpperCase()} · ${fmtTime(ev.remaining)} left · luck ×${BALANCE.event.riftLuck}`, sub: `Current: ${c.glyph} ${c.name} — match your lure for +10% value`, event: true };
     }
     if (ev.phase === 'grace') return { text: 'Rift closing — finish your catch!', event: true };
     if (s.bagFull()) return { text: 'Bag full — sell your catches', sub: 'Follow the beacon to the Fish Stand' };
@@ -1061,12 +1098,18 @@ export class GameApp {
         return { text: `Unlock ${POOLS_BY_ID[pool].name}`, sub: `${u.rodOwned ? '✓' : '○'} Own ${u.rodName} · ${u.found}/${u.need} ${u.fromPool} species` };
       }
     }
+    const list = speciesIn(s.state.world);
     const found = s.discoveredCount();
-    if (found < SPECIES.length) {
-      const next = SPECIES.find((x) => !s.state.journal[x.id] && x.minWeight <= s.rod.maxWeight && s.isPoolUnlocked(x.pool)) ?? SPECIES.find((x) => !s.state.journal[x.id])!;
+    if (found < list.length) {
+      const next = list.find((x) => !s.state.journal[x.id] && x.minWeight <= s.rod.maxWeight && s.isPoolUnlocked(x.pool)) ?? list.find((x) => !s.state.journal[x.id])!;
       const nextRod = RODS.find((r) => r.maxWeight >= next.minWeight)!;
-      return { text: `Journal ${found}/${SPECIES.length}`, sub: next.minWeight > s.rod.maxWeight ? `Next: a ${nextRod.name} rod for heavier fish` : `Hint: ${next.hint}` };
+      const left = list.length - found;
+      return {
+        text: `Journal ${found}/${list.length}`,
+        sub: next.minWeight > s.rod.maxWeight ? `Next: a ${nextRod.name} rod for heavier fish` : s.state.world === 1 && left <= 3 ? `${left} more to unlock a new world! Hint: ${next.hint}` : `Hint: ${next.hint}`,
+      };
     }
+    if (s.state.world === 1) return { text: 'New world unlocked!', sub: 'Open the World menu to travel to Starlight Atoll' };
     return { text: 'Journal complete!', sub: 'Chase weight records and rare modifiers' };
   }
 
@@ -1129,7 +1172,7 @@ export class GameApp {
       else if (a.id === 'plinth' && s.state.bestCatch) {
         const b = s.state.bestCatch;
         addLabel(a.id, a.pos, `Best catch: ${SPECIES_BY_ID[b.speciesId].name}`, `${b.weight.toFixed(1)} kg${b.modifier !== 'normal' ? ` · ${b.modifier}` : ''}`, '', 26);
-      } else if (a.id === 'pool:rift' && ev.openness > 0.5) addLabel(a.id, a.pos, 'Rift Bloom', `Current: ${LURES.find((l) => l.id === ev.current)!.glyph} ${LURES.find((l) => l.id === ev.current)!.name}`, 'lock', 40);
+      } else if (a.id === 'pool:rift' && ev.openness > 0.5) addLabel(a.id, a.pos, POOLS_BY_ID.rift.name, `Current: ${LURES.find((l) => l.id === ev.current)!.glyph} ${LURES.find((l) => l.id === ev.current)!.name}`, 'lock', 40);
     }
     if (!busy) for (const n of this.npcs.labelAnchors()) if (n.visible) addLabel(n.id, n.pos, n.name, 'NPC', 'npc', 18);
 

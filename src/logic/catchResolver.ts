@@ -1,6 +1,6 @@
 import { BALANCE, MODIFIERS, MODIFIERS_BY_ID } from '../data/balance';
 import { SPECIES, SPECIES_BY_ID } from '../data/species';
-import type { ModifierDef, ModifierId, PermanentPoolId, PoolId, Rarity, RodDef, SpeciesDef } from '../data/types';
+import type { ModifierDef, ModifierId, PermanentPoolId, PoolId, Rarity, RodDef, SpeciesDef, WorldId } from '../data/types';
 import { RARITIES } from '../data/types';
 import type { Rng } from './rng';
 
@@ -16,6 +16,8 @@ export interface CatchContext {
   unlockedPools: PermanentPoolId[];
   /** Pets and boosts (default 1). */
   luckMultiplier?: number;
+  /** Which island the cast happens on (default 1). */
+  world?: WorldId;
   /** Forces a gentle common species for the guided first catch. */
   tutorial?: boolean;
 }
@@ -44,7 +46,7 @@ export function eligibleSpecies(ctx: CatchContext): SpeciesDef[] {
     pools = [ctx.pool];
   }
   return SPECIES.filter(
-    (s) => pools.includes(s.pool) && availabilityOk(s, ctx) && s.minWeight <= ctx.rod.maxWeight,
+    (s) => (s.world ?? 1) === (ctx.world ?? 1) && pools.includes(s.pool) && availabilityOk(s, ctx) && s.minWeight <= ctx.rod.maxWeight,
   );
 }
 

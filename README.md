@@ -111,6 +111,17 @@ Gameplay advances on a fixed 1/60 s step with interpolated rendering. Time spent
 is discarded, so a fight never fast-forwards. Gameplay randomness uses an injected seeded RNG;
 cosmetic randomness (particles, bobber jitter) is separate.
 
+## Worlds
+
+- **Sunny Isle** is where you start. Catch all 18 of its fish and **Starlight Atoll** unlocks.
+- Open the World button (globe, top right) to travel. Coins, bag, pets and rods come with you.
+- **Starlight Atoll** is a pastel twilight island:
+  - 18 new fish in Coral Lagoon, Glimmer Pool, Abyss Pool and the Starfall Rift event.
+  - 4 new rods: Coralspire ¢60k, Tidecrown ¢150k, Nebulacast ¢400k and Starforged ¢1M,
+    rated up to 10,000 kg.
+  - Its own pool unlocks: Glimmer Pool needs the Tidecrown, Abyss Pool needs the Nebulacast.
+- Travelling saves, then rebuilds the scene behind a short "Sailing to…" card.
+
 ## Pets, levels, daily rewards and quests
 
 All of these use **earned coins only**. Nothing can be bought with real money.

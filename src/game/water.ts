@@ -40,6 +40,7 @@ uniform vec4 uRipples[${RIPPLE_SLOTS}]; // xy = uv pos, z = age (s), w = strengt
 uniform float uGlow;    // rift portal glow
 uniform vec3 uGlowColor;
 uniform float uDim;     // locked pools are dimmer
+uniform float uMood;    // 0 teal, 0.5 deep blue, 1 violet
 varying vec2 vUv;
 varying float vWave;
 
@@ -66,6 +67,12 @@ void main() {
   vec3 mid = mix(uMid, uMidN, uNight);
   vec3 deep = mix(uDeep, uDeepN, uNight);
   // teal depth gradient: deep core -> mid teal -> bright shallows at the rim
+  // mood shift: teal -> deep blue -> violet
+  float mb = smoothstep(0.0, 0.5, uMood);
+  float mv = smoothstep(0.5, 1.0, uMood);
+  shallow = mix(mix(shallow, vec3(0.30, 0.55, 0.95), mb), vec3(0.78, 0.55, 1.0), mv);
+  mid = mix(mix(mid, vec3(0.09, 0.27, 0.72), mb), vec3(0.45, 0.22, 0.86), mv);
+  deep = mix(mix(deep, vec3(0.03, 0.08, 0.32), mb), vec3(0.17, 0.05, 0.42), mv);
   vec3 col = mix(deep, mid, smoothstep(0.0, 0.6, r));
   col = mix(col, shallow, smoothstep(0.55, 0.97, r));
 
@@ -92,7 +99,12 @@ void main() {
   float h = hash(cell);
   float tw = sin(uTime * 2.0 + h * 40.0);
   float dotShape = 1.0 - smoothstep(0.08, 0.18, length(fract(vUv * 40.0) - 0.5));
-  col += step(0.985, h) * smoothstep(0.7, 1.0, tw) * dotShape * 0.6;
+  col += step(0.985 - uMood * 0.03, h) * smoothstep(0.7, 1.0, tw) * dotShape * (0.6 + uMood * 0.5) * mix(vec3(1.0), vec3(1.0, 0.75, 1.0), mv);
+  // soft swirling light in the deep while the pool is shifting
+  if (uMood > 0.01) {
+    float sw = sin(a * 3.0 - uTime * 0.8 + r * 8.0) * 0.5 + 0.5;
+    col += uMood * sw * (1.0 - r) * 0.16 * mix(vec3(0.4, 0.6, 1.0), vec3(1.0, 0.5, 1.0), mv);
+  }
   // bobber / catch ripples
   float rip = 0.0;
   for (int i = 0; i < ${RIPPLE_SLOTS}; i++) rip += ripple(uRipples[i], vUv);
@@ -116,6 +128,7 @@ export type WaterMaterial = THREE.ShaderMaterial & {
     uGlow: { value: number };
     uGlowColor: { value: THREE.Color };
     uDim: { value: number };
+    uMood: { value: number };
   };
 };
 
@@ -171,6 +184,7 @@ export function createWaterMaterial(): WaterMaterial {
       uGlow: { value: 0 },
       uGlowColor: { value: new THREE.Color('#ff7ae0') },
       uDim: { value: 0 },
+      uMood: { value: 0 },
     },
   }) as WaterMaterial;
 }

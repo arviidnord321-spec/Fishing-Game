@@ -9,7 +9,8 @@ Everything else is created in code and written for this project:
 | --- | --- | --- |
 | Island, pools, props, buildings, trees, rocks | Procedural Three.js primitives (`src/game/world.ts`) | Project-original |
 | Angler and villager characters | Procedural primitives (`src/game/character.ts`) | Project-original |
-| 18 pets (models and animation) | Procedural primitives (`src/game/petKit.ts`, `src/game/petModels.ts`), modelled after the owner-supplied pet redesign sheet. No image data from the sheet is shipped. | Project-original |
+| 18 pets (models and animation) | Procedural primitives (`src/game/petKit.ts`, `src/game/petModels.ts`), modelled after the owner-supplied pet redesign sheet. | Project-original |
+| 18 pet portraits + silhouettes (`src/assets/pets/*.webp`) | Cut out of the **owner-supplied** pet redesign sheet with `scripts/pet-portraits.py` (background removed, 240×200 WebP). Used in pet cards, slots and the hatch reveal. | Supplied by the project owner; the owner is responsible for its rights |
 | 18 fish species and modifier looks | Procedural primitives (`src/game/fishModels.ts`) | Project-original |
 | Water, sky, particle shaders | GLSL written for this project (`src/game/water.ts`, `src/game/effects.ts`) | Project-original |
 | Sign textures, contact shadows, fish icons | Drawn at runtime with Canvas 2D or rendered from the procedural models | Project-original |
@@ -18,6 +19,8 @@ Everything else is created in code and written for this project:
 | UI icons | Inline SVG drawn for this project (`src/ui/icons.ts`) | Project-original |
 | 12 egg illustrations | Inline SVG (`src/ui/eggArt.ts`) drawn for this project after the owner-supplied egg design sheet. No image data from the sheet is shipped. | Project-original |
 | Clouds, shore foam | Procedural geometry (`src/game/scenery.ts`) | Project-original |
+| Pool ambience (mood colours, motes, leaping fish, lily pads) | Shader and procedural geometry (`src/game/poolFx.ts`, `src/game/water.ts`) | Project-original |
+| Funk music | Synthesized at runtime (`src/game/audio.ts`) | Project-original |
 | Favicon | Inline SVG in `index.html` | Project-original |
 
 No assets, names, screenshots or branding were taken from the reference recording ("Hole

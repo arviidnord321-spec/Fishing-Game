@@ -18,6 +18,16 @@ export const PALETTE = {
   stoneDark: '#8f887c',
   wood: '#a06a3f',
   woodDark: '#7a4c2b',
+  sea: '#2fb5d6',
+  seaNight: '#1d3f80',
+  fog: '#bfeef8',
+  canopy: '#3fae5b',
+  pine: '#2f8f58',
+  bush: '#4fbf5f',
+  hemiSky: '#e8fbff',
+  hemiGround: '#5d8a4f',
+  grassBlade: '#5cb455',
+  grassTip: '#c6f28c',
 };
 
 const lambertCache = new Map<string, THREE.MeshLambertMaterial>();

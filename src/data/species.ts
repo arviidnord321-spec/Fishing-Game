@@ -96,6 +96,102 @@ export const SPECIES: SpeciesDef[] = [
     fightSeconds: 11, availability: 'event', hint: 'Only during Rift Bloom. Legendary; needs 450 kg+.', modelScale: 3.3,
     body: { color: '#7a3cc9', belly: '#ffb6f2', fin: '#ff7a3d', length: 1, height: 0.45, width: 0.45 }, features: ['serpent', 'horns'],
   },
+  // ======== Starlight Atoll (world 2) ========
+  {
+    id: 'coral-guppy', name: 'Coral Guppy', world: 2, pool: 'meadow', rarity: 'common', minWeight: 120, maxWeight: 300, baseValue: 420,
+    fightSeconds: 6, availability: 'always', hint: 'Coral Lagoon, any time.', modelScale: 1.3,
+    body: { color: '#ff8a7a', belly: '#ffe1da', fin: '#ff5f6e', length: 1.0, height: 0.6, width: 0.5 }, features: ['spots'],
+  },
+  {
+    id: 'bubblebeak', name: 'Bubblebeak', world: 2, pool: 'meadow', rarity: 'common', minWeight: 150, maxWeight: 380, baseValue: 480,
+    fightSeconds: 6, availability: 'always', hint: 'Coral Lagoon, any time.', modelScale: 1.35,
+    body: { color: '#7fd8ff', belly: '#e6f9ff', fin: '#ffb3e3', length: 1.1, height: 0.5, width: 0.42 }, features: ['spear'],
+  },
+  {
+    id: 'sandsifter', name: 'Sandsifter', world: 2, pool: 'meadow', rarity: 'common', minWeight: 200, maxWeight: 480, baseValue: 560,
+    fightSeconds: 6.5, availability: 'always', hint: 'Coral Lagoon, any time.', modelScale: 1.4,
+    body: { color: '#f3c48a', belly: '#fff3dc', fin: '#e0905a', length: 1.0, height: 0.7, width: 0.6 }, features: ['whiskers', 'buttons'],
+  },
+  {
+    id: 'lumen-tetra', name: 'Lumen Tetra', world: 2, pool: 'meadow', rarity: 'uncommon', minWeight: 300, maxWeight: 700, baseValue: 900,
+    fightSeconds: 7, availability: 'always', hint: 'Coral Lagoon. A little luck helps.', modelScale: 1.45,
+    body: { color: '#6a7cff', belly: '#d6dcff', fin: '#7ff3ff', length: 1.1, height: 0.62, width: 0.45 }, features: ['lantern', 'ribbons'],
+  },
+  {
+    id: 'pearl-puffer', name: 'Pearl Puffer', world: 2, pool: 'meadow', rarity: 'uncommon', minWeight: 400, maxWeight: 900, baseValue: 1200,
+    fightSeconds: 7, availability: 'always', hint: 'Coral Lagoon. Heavy for a Riftcaller.', modelScale: 1.5,
+    body: { color: '#f6f0ff', belly: '#ffffff', fin: '#c9b8ff', length: 1.0, height: 0.9, width: 0.9 }, features: ['puffer'],
+  },
+  {
+    id: 'reefking-grouper', name: 'Reefking Grouper', world: 2, pool: 'meadow', rarity: 'rare', minWeight: 1250, maxWeight: 1900, baseValue: 2600,
+    fightSeconds: 8, availability: 'always', hint: 'Coral Lagoon. Needs a Coralspire (1,250 kg+).', modelScale: 1.9,
+    body: { color: '#d9524a', belly: '#ffd2b8', fin: '#ffcf4a', length: 1.1, height: 0.8, width: 0.7 }, features: ['crown', 'spots'],
+  },
+  {
+    id: 'glass-eel', name: 'Glass Eel', world: 2, pool: 'reed', rarity: 'common', minWeight: 600, maxWeight: 1200, baseValue: 1500,
+    fightSeconds: 7, availability: 'always', hint: 'Glimmer Pool, any time.', modelScale: 1.7,
+    body: { color: '#bff6ff', belly: '#ffffff', fin: '#7fe9ff', length: 1.0, height: 0.32, width: 0.3 }, features: ['eel'],
+  },
+  {
+    id: 'prism-angelfish', name: 'Prism Angelfish', world: 2, pool: 'reed', rarity: 'uncommon', minWeight: 900, maxWeight: 1800, baseValue: 2400,
+    fightSeconds: 7.5, availability: 'always', hint: 'Glimmer Pool, any time.', modelScale: 1.7,
+    body: { color: '#ff9de2', belly: '#fff0fa', fin: '#7ff3ff', length: 0.9, height: 1.0, width: 0.35 }, features: ['sail', 'wings'],
+  },
+  {
+    id: 'twinkle-ray', name: 'Twinkle Ray', world: 2, pool: 'reed', rarity: 'uncommon', minWeight: 1100, maxWeight: 2200, baseValue: 3000,
+    fightSeconds: 8, availability: 'always', hint: 'Glimmer Pool. Glides near the bottom.', modelScale: 1.9,
+    body: { color: '#5fd3c0', belly: '#e9fffa', fin: '#ffd76e', length: 1.0, height: 0.3, width: 1.0 }, features: ['ray'],
+  },
+  {
+    id: 'opal-koi', name: 'Opal Koi', world: 2, pool: 'reed', rarity: 'rare', minWeight: 1500, maxWeight: 3000, baseValue: 5000,
+    fightSeconds: 8.5, availability: 'always', hint: 'Glimmer Pool. Needs 1,500 kg+.', modelScale: 2.0,
+    body: { color: '#fff5e8', belly: '#ffffff', fin: '#ff9a6b', length: 1.1, height: 0.6, width: 0.5 }, features: ['crown', 'ribbons'],
+  },
+  {
+    id: 'crystal-swordfish', name: 'Crystal Swordfish', world: 2, pool: 'reed', rarity: 'rare', minWeight: 2000, maxWeight: 3400, baseValue: 6500,
+    fightSeconds: 9, availability: 'always', hint: 'Glimmer Pool. Needs a Tidecrown (2,000 kg+).', modelScale: 2.2,
+    body: { color: '#9fd8ff', belly: '#eef9ff', fin: '#c9b8ff', length: 1.4, height: 0.5, width: 0.4 }, features: ['spear', 'sail'],
+  },
+  {
+    id: 'aurora-manta', name: 'Aurora Manta', world: 2, pool: 'reed', rarity: 'epic', minWeight: 2600, maxWeight: 3400, baseValue: 12000,
+    fightSeconds: 9.5, availability: 'night', hint: 'Glimmer Pool at night. Epic; needs 2,600 kg+.', modelScale: 2.6,
+    body: { color: '#6a3fd6', belly: '#ffd6f5', fin: '#7ff3ff', length: 1.0, height: 0.3, width: 1.2 }, features: ['ray', 'crescent'],
+  },
+  {
+    id: 'lantern-angler', name: 'Lantern Angler', world: 2, pool: 'moon', rarity: 'common', minWeight: 2500, maxWeight: 4000, baseValue: 5000,
+    fightSeconds: 8.5, availability: 'always', hint: 'Abyss Pool, any time.', modelScale: 2.1,
+    body: { color: '#2a2f5a', belly: '#6f7ab0', fin: '#ffd23f', length: 1.0, height: 0.8, width: 0.7 }, features: ['lantern', 'whiskers'],
+  },
+  {
+    id: 'void-squid', name: 'Void Squid', world: 2, pool: 'moon', rarity: 'uncommon', minWeight: 3000, maxWeight: 5000, baseValue: 8000,
+    fightSeconds: 9, availability: 'always', hint: 'Abyss Pool. Pulls hard.', modelScale: 2.3,
+    body: { color: '#3a1a6a', belly: '#b48bff', fin: '#ff7ad9', length: 1.1, height: 0.6, width: 0.6 }, features: ['spiral', 'ribbons'],
+  },
+  {
+    id: 'gloom-serpent', name: 'Gloom Serpent', world: 2, pool: 'moon', rarity: 'rare', minWeight: 4000, maxWeight: 6000, baseValue: 14000,
+    fightSeconds: 10, availability: 'night', hint: 'Abyss Pool at night. Needs a Nebulacast.', modelScale: 2.8,
+    body: { color: '#1f6a5a', belly: '#9ff0d0', fin: '#ff7a3d', length: 1.0, height: 0.42, width: 0.42 }, features: ['serpent'],
+  },
+  {
+    id: 'comet-coelacanth', name: 'Comet Coelacanth', world: 2, pool: 'moon', rarity: 'epic', minWeight: 4500, maxWeight: 6000, baseValue: 22000,
+    fightSeconds: 10, availability: 'always', hint: 'Abyss Pool. Epic; needs 4,500 kg+.', modelScale: 2.7,
+    body: { color: '#3c5a9c', belly: '#cfe0ff', fin: '#ffd76e', length: 1.2, height: 0.7, width: 0.55 }, features: ['horns', 'spots'],
+  },
+  {
+    id: 'abyssal-titan', name: 'Abyssal Titan', world: 2, pool: 'moon', rarity: 'legendary', minWeight: 6200, maxWeight: 9500, baseValue: 45000,
+    fightSeconds: 11, availability: 'night', hint: 'Abyss Pool at night. Legendary; needs a Starforged.', modelScale: 3.2,
+    body: { color: '#141a3a', belly: '#5f6fd0', fin: '#7ff3ff', length: 1.4, height: 0.75, width: 0.8 }, features: ['whale', 'lantern'],
+  },
+  {
+    id: 'starfall-leviathan', name: 'Starfall Leviathan', world: 2, pool: 'rift', rarity: 'legendary', minWeight: 8000, maxWeight: 10000, baseValue: 80000,
+    fightSeconds: 12, availability: 'event', hint: 'Only during Starfall. Legendary; needs 8,000 kg+.', modelScale: 3.6,
+    body: { color: '#ffd23f', belly: '#fff6cf', fin: '#ff7ad9', length: 1.0, height: 0.45, width: 0.45 }, features: ['serpent', 'crown'],
+  },
 ];
 
 export const SPECIES_BY_ID: Record<string, SpeciesDef> = Object.fromEntries(SPECIES.map((s) => [s.id, s]));
+
+/** Species that live in a world (world 1 has no `world` field). */
+export function speciesIn(world: 1 | 2): SpeciesDef[] {
+  return SPECIES.filter((s) => (s.world ?? 1) === world);
+}
