@@ -30,6 +30,9 @@ export class CameraRig {
   private initialized = false;
   private tmp = new THREE.Vector3();
   private tmp2 = new THREE.Vector3();
+  private rp = new THREE.Vector3();
+  private rl = new THREE.Vector3();
+  private rr = new THREE.Vector3();
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 600);
@@ -52,7 +55,7 @@ export class CameraRig {
   }
 
   update(dt: number, target: THREE.Vector3, world: World): void {
-    const chest = this.tmp.copy(target).add(new THREE.Vector3(0, 1.25, 0));
+    const chest = this.tmp.copy(target).setY(target.y + 1.25);
     // follow pose
     const horiz = Math.cos(this.pitch) * this.distance;
     this.desiredPos.set(
@@ -86,14 +89,14 @@ export class CameraRig {
       const dist = THREE.MathUtils.clamp((radius / Math.sin(fov / 2)) * 1.35, 3.2, 14);
       // Look from beside the angler (swung ~40°) so the avatar never blocks the catch.
       const dir = this.tmp2.copy(from).sub(center).setY(0).normalize().applyAxisAngle(UP, 0.7);
-      const rp = new THREE.Vector3().copy(center).addScaledVector(dir, dist * 0.92);
+      const rp = this.rp.copy(center).addScaledVector(dir, dist * 0.92);
       rp.y = center.y + dist * 0.3;
       // keep the reveal camera out of scenery
       const c2 = world.cameraClearance(center, rp, 0.35);
       if (c2 < 1) rp.sub(center).multiplyScalar(Math.max(0.35, c2 - 0.05)).add(center);
-      const look = new THREE.Vector3().copy(center).add(new THREE.Vector3(0, radius * 0.15, 0));
+      const look = this.rl.copy(center).setY(center.y + radius * 0.15);
       // Aim a little right of the catch so it sits left of center, clear of the result card.
-      const right = new THREE.Vector3().subVectors(center, rp).setY(0).normalize().cross(UP);
+      const right = this.rr.subVectors(center, rp).setY(0).normalize().cross(UP);
       look.addScaledVector(right, radius * 0.45 + 0.35);
       const k = smooth(this.revealW);
       this.desiredPos.lerp(rp, k);

@@ -68,6 +68,8 @@ export class Particles {
   emit(x: number, y: number, z: number, vx: number, vy: number, vz: number, life: number, size: number, color: string, gravity = 9): void {
     const i = this.cursor;
     this.cursor = (this.cursor + 1) % MAX;
+    this.live++;
+    this.idle = false;
     this.pos.set([x, y, z], i * 3);
     this.vel.set([vx, vy, vz], i * 3);
     this.life[i] = life;
@@ -79,8 +81,14 @@ export class Particles {
   }
 
   /** Water splash burst (roughly 50 particles for ordinary catches, ≤150 for rare/event). */
-  splash(x: number, y: number, z: number, count: number, radius = 0.5, colors = ['#ffffff', '#bff6ff', '#7fe9ff']): void {
+  splash(x: number, y: number, z: number, count: number, radius = 0.5, colors = ['#ffffff', '#c8fbf6', '#7fe9e0', '#5fd3e6']): void {
     const n = Math.round(count * this.budget);
+    // soft mist puffs that hang in the air a moment
+    const mist = Math.max(1, Math.round(n * 0.18));
+    for (let k = 0; k < mist; k++) {
+      const a = Math.random() * Math.PI * 2;
+      this.emit(x + Math.cos(a) * radius * 0.5, y + 0.1, z + Math.sin(a) * radius * 0.5, Math.cos(a) * 0.5, 0.8 + Math.random() * 0.6, Math.sin(a) * 0.5, 0.9 + Math.random() * 0.4, 0.35 + Math.random() * 0.25, '#e8fffb', 0.6);
+    }
     for (let k = 0; k < n; k++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 1 + Math.random() * 2.5;
@@ -116,12 +124,19 @@ export class Particles {
     }
   }
 
+  private live = 0;
+  private idle = false;
+
   update(dt: number): void {
+    // nothing alive: skip the loop and the GPU uploads entirely
+    if (this.live <= 0 && this.idle) return;
+    let alive = 0;
     for (let i = 0; i < MAX; i++) {
       if (this.life[i] <= 0) {
         this.alpha[i] = 0;
         continue;
       }
+      alive++;
       this.life[i] -= dt;
       const j = i * 3;
       this.vel[j + 1] -= this.gravity[i] * dt;
@@ -132,6 +147,8 @@ export class Particles {
       this.alpha[i] = Math.min(1, k * 2);
       this.size[i] = this.baseSize[i] * (0.5 + 0.5 * k);
     }
+    this.live = alive;
+    this.idle = alive === 0;
     this.geo.attributes.position.needsUpdate = true;
     this.geo.attributes.aAlpha.needsUpdate = true;
     this.geo.attributes.aSize.needsUpdate = true;

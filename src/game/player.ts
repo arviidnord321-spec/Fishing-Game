@@ -10,6 +10,9 @@ export class PlayerController {
   readonly pos = new THREE.Vector3();
   readonly prevPos = new THREE.Vector3();
   readonly vel = new THREE.Vector3();
+  private sRight = new THREE.Vector3();
+  private sDesired = new THREE.Vector3();
+  private sDiff = new THREE.Vector3();
   facing = Math.PI; // radians around Y; 0 = +z
   /** Scripted relocation (e.g. rift opening under the player). */
   private push: { from: THREE.Vector3; to: THREE.Vector3; t: number; dur: number } | null = null;
@@ -44,14 +47,15 @@ export class PlayerController {
       if (k >= 1) this.push = null;
       return;
     }
-    const right = new THREE.Vector3(-camForward.z, 0, camForward.x);
-    const desired = new THREE.Vector3()
+    const right = this.sRight.set(-camForward.z, 0, camForward.x);
+    const desired = this.sDesired
+      .set(0, 0, 0)
       .addScaledVector(camForward, move.y)
       .addScaledVector(right, move.x);
     if (locked) desired.set(0, 0, 0);
     const mag = Math.min(1, desired.length());
     const targetVel = mag > 0 ? desired.normalize().multiplyScalar(M.maxSpeed * mag) : desired;
-    const diff = targetVel.clone().sub(this.vel);
+    const diff = this.sDiff.copy(targetVel).sub(this.vel);
     const rate = (mag > 0 ? M.accel : M.decel) * dt;
     if (diff.length() <= rate) this.vel.copy(targetVel);
     else this.vel.addScaledVector(diff.normalize(), rate);

@@ -19,7 +19,7 @@ minutes a **Rift Bloom** opens a giant portal pool in the south clearing.
 ```bash
 npm install
 npm run dev            # http://localhost:5173 (debug overlay on)
-npm test               # 44 deterministic logic/save/platform tests
+npm test               # 50 deterministic logic/save/platform/quality tests
 npm run build          # standalone release build  -> dist/
 npm run preview        # serve dist/ locally
 ```
@@ -109,6 +109,47 @@ scripts/         economy simulation, Playwright QA scripts
 Gameplay advances on a fixed 1/60 s step with interpolated rendering. Time spent in the background
 is discarded, so a fight never fast-forwards. Gameplay randomness uses an injected seeded RNG;
 cosmetic randomness (particles, bobber jitter) is separate.
+
+## Graphics quality and performance
+
+Pause → Settings → **Graphics quality** offers Auto (default), Low, Medium and High. **Show FPS**
+puts a frame-rate chip with the active level in the corner.
+
+| Preset | Max pixel ratio | Grass tufts | Water | Terrain | Wind | Particles | Extras |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Low | 1.0 | 700 | flat gradient, no waves | plain color | off | ×0.45 | no stars or lamp halos; villagers animated every 3rd frame |
+| Medium | 1.25 | 1,800 | waves + caustics | painted patches | on | ×0.75 | all |
+| High | 1.75 | 5,200 | waves + caustics | painted patches | on | ×1 | all |
+
+**Auto** chooses a starting level from device hints:
+- Software renderers (SwiftShader/llvmpipe, which blocklisted GPUs and some Chromebooks fall back
+  to) start on Low.
+- Touch devices start on Low, or Medium when they have 8+ cores and 6 GB+ memory.
+- Desktops start on Medium, or High with 8+ cores.
+
+While you play, Auto then measures real frame times in 2-second windows and moves along a
+seven-rung ladder (low 60% → … → high 100% resolution). It steps down after about 4 s below
+47 fps, and steps up after about 16 s at 57 fps or more. It never climbs back onto a rung that
+already proved too slow, so a 60 Hz display can't make it oscillate. Paused or hidden time is
+never measured.
+
+Antialiasing is chosen when the GL context is created:
+- on for Medium and High,
+- off for Low,
+- in Auto, off on touch devices and high-DPI screens.
+
+Changing it needs a reload.
+
+Other performance work in the code:
+- Static props and character limbs are baked into a few merged meshes.
+- Grass is instanced in spatial chunks that are frustum-culled and hidden beyond 42 m.
+- The render loop allocates no new vectors.
+- HUD code never reads layout every frame.
+- Particles skip GPU uploads when none are alive.
+- The world redraws at ⅓ rate behind menus.
+
+Measure with `node scripts/bench.mjs <url> <label> [w] [h] [quality]` (see `QA_REPORT.md`
+for results).
 
 ## Tested environments
 

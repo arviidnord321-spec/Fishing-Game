@@ -25,6 +25,14 @@ const NAMES = ['Villager Pim', 'Villager Ode', 'Villager Rue', 'Villager Bo', 'V
 export class Npcs {
   private list: Npc[] = [];
   private t = 0;
+  /** Animate villagers every Nth frame on lower presets (they are background detail). */
+  stride = 1;
+  private vTip = new THREE.Vector3();
+  private vDir = new THREE.Vector3();
+  private vBob = new THREE.Vector3();
+  private anchors = [] as { id: string; name: string; pos: THREE.Vector3; visible: boolean }[];
+  private frameNo = 0;
+  private acc = 0;
 
   constructor(private world: World, private particles: Particles) {
     const spots: { pool: PoolId; angle: number; event: boolean }[] = [
@@ -47,21 +55,41 @@ export class Npcs {
       const bobber = new THREE.Mesh(bobGeo, new THREE.MeshLambertMaterial({ color: '#ff4d4d' }));
       world.scene.add(bobber);
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.8 }));
+      line.frustumCulled = false;
       world.scene.add(line);
       if (!s.event) world.colliders.push({ kind: 'circle', x: ch.root.position.x, z: ch.root.position.z, r: 0.35, h: 1.7 });
       this.list.push({ ch, pool: s.pool, bobber, line, timer: 3 + i * 1.7, event: s.event, name: NAMES[i] });
     });
   }
 
+  /** QA experiments: remove villagers entirely. */
+  hideAll(): void {
+    for (const n of this.list) {
+      n.ch.root.removeFromParent();
+      n.bobber.removeFromParent();
+      n.line.removeFromParent();
+    }
+    this.list = [];
+  }
+
   /** Labels for the HUD (world positions). */
   labelAnchors(): { id: string; name: string; pos: THREE.Vector3; visible: boolean }[] {
-    return this.list.map((n, i) => ({ id: `npc${i}`, name: n.name, pos: n.ch.root.position.clone().add(new THREE.Vector3(0, 2.15, 0)), visible: n.ch.root.visible }));
+    if (this.anchors.length !== this.list.length) this.anchors = this.list.map((n, i) => ({ id: `npc${i}`, name: n.name, pos: new THREE.Vector3(), visible: false }));
+    this.list.forEach((n, i) => {
+      this.anchors[i].pos.copy(n.ch.root.position).setY(2.25);
+      this.anchors[i].visible = n.ch.root.visible;
+    });
+    return this.anchors;
   }
 
   /** Move event villagers out of a growing rift if needed. */
-  update(dt: number, riftOpenness: number, reducedMotion: boolean): void {
+  update(dtFrame: number, riftOpenness: number, reducedMotion: boolean): void {
+    this.acc += dtFrame;
+    if (this.frameNo++ % this.stride !== 0) return;
+    const dt = this.acc;
+    this.acc = 0;
     this.t += dt;
-    const tip = new THREE.Vector3();
+    const tip = this.vTip;
     for (const n of this.list) {
       const visible = !n.event || riftOpenness > 0.6;
       n.ch.root.visible = visible;
@@ -85,15 +113,15 @@ export class Npcs {
       n.ch.root.updateMatrixWorld(true);
       n.ch.rodTip.getWorldPosition(tip);
       const p = this.world.pools.get(n.pool)!;
-      const dir = new THREE.Vector3(p.x - n.ch.root.position.x, 0, p.z - n.ch.root.position.z).normalize();
-      const bob = n.ch.pose === 'celebrate' ? tip.clone().add(new THREE.Vector3(0, -0.5, 0)) : n.ch.root.position.clone().addScaledVector(dir, 2.6);
+      const dir = this.vDir.set(p.x - n.ch.root.position.x, 0, p.z - n.ch.root.position.z).normalize();
+      const bob = n.ch.pose === 'celebrate' ? this.vBob.copy(tip).setY(tip.y - 0.5) : this.vBob.copy(n.ch.root.position).addScaledVector(dir, 2.6);
       if (n.ch.pose !== 'celebrate') bob.y = p.surfaceY + 0.04 + Math.sin(this.t * 2 + n.timer) * 0.02;
       n.bobber.position.copy(bob);
       const pos = n.line.geometry.attributes.position as THREE.BufferAttribute;
       pos.setXYZ(0, tip.x, tip.y, tip.z);
       pos.setXYZ(1, bob.x, bob.y, bob.z);
       pos.needsUpdate = true;
-      n.line.geometry.computeBoundingSphere();
+      
     }
   }
 }

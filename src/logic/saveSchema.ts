@@ -15,7 +15,8 @@ export interface Settings {
   master: number;
   music: number;
   sfx: number;
-  quality: 'low' | 'medium' | 'high';
+  quality: 'auto' | 'low' | 'medium' | 'high';
+  showFps: boolean;
   reducedMotion: boolean;
   assist: boolean;
   bindings: Record<string, string>;
@@ -67,7 +68,7 @@ export const DEFAULT_BINDINGS: Record<string, string> = {
 };
 
 export function defaultSettings(): Settings {
-  return { master: 0.8, music: 0.5, sfx: 0.8, quality: 'medium', reducedMotion: false, assist: false, bindings: { ...DEFAULT_BINDINGS } };
+  return { master: 0.8, music: 0.5, sfx: 0.8, quality: 'auto', showFps: false, reducedMotion: false, assist: false, bindings: { ...DEFAULT_BINDINGS } };
 }
 
 export function newSave(): SaveData {
@@ -221,7 +222,8 @@ export function parseSave(rawText: string | null): LoadOutcome {
     d.settings.master = num(s.master, 0, 1, d.settings.master);
     d.settings.music = num(s.music, 0, 1, d.settings.music);
     d.settings.sfx = num(s.sfx, 0, 1, d.settings.sfx);
-    if (s.quality === 'low' || s.quality === 'medium' || s.quality === 'high') d.settings.quality = s.quality;
+    if (s.quality === 'auto' || s.quality === 'low' || s.quality === 'medium' || s.quality === 'high') d.settings.quality = s.quality;
+    d.settings.showFps = s.showFps === true;
     d.settings.reducedMotion = s.reducedMotion === true;
     d.settings.assist = s.assist === true;
     if (isObj(s.bindings)) {

@@ -20,10 +20,25 @@ import { animateFish, buildFish, displayScale } from './fishModels';
 import { InputManager } from './input';
 import { Npcs } from './npcs';
 import { PlayerController } from './player';
+import { AutoQuality, gpuName, initialPreset, QUALITY, type QualityPreset } from './quality';
 import { ThumbnailRenderer } from './thumbs';
 import { World } from './world';
 
 const STEP = BALANCE.sim.step;
+
+/** Read the GPU name from a throwaway context before the real renderer is created. */
+function probeGpu(): string {
+  try {
+    const c = document.createElement('canvas');
+    const gl = (c.getContext('webgl2') || c.getContext('webgl')) as WebGLRenderingContext | null;
+    if (!gl) return '';
+    const name = gpuName(gl);
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return name;
+  } catch {
+    return '';
+  }
+}
 // Debug overlay and cheats exist only in dev and the separate QA build, never in release builds.
 const DEBUG = import.meta.env.DEV || import.meta.env.MODE === 'qa';
 
@@ -61,8 +76,17 @@ export class GameApp {
   private last = 0;
   private raf = 0;
   private fps = 60;
-  private slowFrames = 0;
   private pixelRatio = 1;
+  private auto: AutoQuality;
+  private preset: QualityPreset = 'medium';
+  private renderScale = 1;
+  private qualityLog = '';
+  private menuFrame = 0;
+  private lastHud: HudView | null = null;
+  /** QA-build-only feature switches for performance experiments (?exp=nograss,nowater,...). */
+  private exp = '';
+  private gpu = '';
+  private fpsWindow = { frames: 0, time: 0, value: 60 };
   private bobberLanding = new THREE.Vector3();
   private bobberFrom = new THREE.Vector3();
   private bobberPos = new THREE.Vector3();
@@ -81,6 +105,13 @@ export class GameApp {
   private disposed = false;
   private renderError: HTMLElement | null = null;
   private tmpV = new THREE.Vector3();
+  // scratch vectors for per-frame math (no allocations in the render loop)
+  private sTip = new THREE.Vector3();
+  private sA = new THREE.Vector3();
+  private sB = new THREE.Vector3();
+  private sC = new THREE.Vector3();
+  private sProj = new THREE.Vector3();
+  private sBeacon = new THREE.Vector3();
   private lastBlockedToast = 0;
   private pendingAd = false;
 
@@ -91,7 +122,19 @@ export class GameApp {
     private platform: Platform,
     private repo: SaveRepository,
   ) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    // Antialiasing is fixed when the GL context is created: off for the low preset and for
+    // touch devices on auto (it is the costliest per-pixel feature on weak GPUs).
+    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    const qs = store.state.settings.quality;
+    const gpu = probeGpu();
+    this.gpu = gpu;
+    this.preset = qs === 'auto' ? initialPreset(coarse, gpu) : qs;
+    this.auto = new AutoQuality(this.preset);
+    const exp = DEBUG ? new URLSearchParams(location.search).get('exp') ?? '' : '';
+    this.exp = exp;
+    // High-DPI screens are already smooth; MSAA there mostly costs fill rate.
+    const antialias = exp.includes('noaa') ? false : qs === 'auto' ? !coarse && this.preset !== 'low' && (window.devicePixelRatio || 1) < 1.5 : qs !== 'low';
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.world = new World();
     this.player = new PlayerController(this.world);
@@ -274,8 +317,14 @@ export class GameApp {
     this.input.bindings = { ...s.bindings };
     this.cam.reducedMotion = s.reducedMotion;
     this.ui.setReducedMotion(s.reducedMotion);
-    this.particles.budget = s.quality === 'low' ? 0.5 : 1;
-    this.resize();
+    if (s.quality !== 'auto') {
+      this.preset = s.quality;
+      this.renderScale = 1;
+    } else {
+      this.preset = this.auto.preset;
+      this.renderScale = this.auto.renderScale;
+    }
+    this.applyQuality();
   }
 
   private syncWorldFromState(): void {
@@ -304,14 +353,33 @@ export class GameApp {
     this.world.resolve(this.player.pos, BALANCE.movement.radius);
   }
 
+  /** Push the current preset + render scale into every system that cares. */
+  private applyQuality(): void {
+    let level = QUALITY[this.preset];
+    if (this.exp) {
+      level = { ...level };
+      if (this.exp.includes('nograss')) level.grass = 0;
+      if (this.exp.includes('nowater')) level.waterDetail = false;
+      if (this.exp.includes('nowind')) level.wind = false;
+    }
+    this.world.setQuality(level);
+    if (this.exp.includes('nonpc')) this.npcs.hideAll();
+    if (this.exp.includes('nochar')) this.character.root.visible = false;
+    if (this.exp.includes('noterrain')) this.world.debugPlainTerrain();
+    if (this.exp.includes('nolabels')) this.ui.root.style.display = 'none';
+    this.particles.budget = level.particles;
+    this.npcs.stride = level.npcStride;
+    this.resize();
+  }
+
   private resize(): void {
     const w = Math.max(1, this.container.clientWidth);
     const h = Math.max(1, this.container.clientHeight);
-    const q = this.store.state.settings.quality;
     const dpr = window.devicePixelRatio || 1;
-    const cap = q === 'low' ? 1 : q === 'medium' ? (this.input.isTouch ? 1.25 : 1.35) : this.input.isTouch ? 1.25 : 1.5;
-    this.pixelRatio = Math.min(dpr, cap) * (this.slowFrames > 0 ? 0.85 : 1);
+    this.pixelRatio = Math.max(0.5, Math.min(dpr, QUALITY[this.preset].maxPixelRatio) * this.renderScale);
     this.renderer.setPixelRatio(this.pixelRatio);
+    this.ui.setViewport();
+    this.auto.reset();
     this.renderer.setSize(w, h, false);
     this.cam.camera.aspect = w / h;
     this.cam.camera.updateProjectionMatrix();
@@ -338,7 +406,23 @@ export class GameApp {
     this.last = now;
     if (dt > BALANCE.sim.backgroundGapSeconds) dt = 0; // returning from background: discard
     this.fps = this.fps * 0.95 + (dt > 0 ? 1 / dt : 60) * 0.05;
-    this.adaptQuality(dt);
+    this.fpsWindow.frames++;
+    this.fpsWindow.time += dt;
+    if (this.fpsWindow.time >= 0.5) {
+      this.fpsWindow.value = this.fpsWindow.frames / this.fpsWindow.time;
+      this.fpsWindow.frames = 0;
+      this.fpsWindow.time = 0;
+    }
+    // Automatic quality only learns from frames of real play.
+    if (this.store.state.settings.quality === 'auto' && !this.pause.paused && dt > 0) {
+      const change = this.auto.frame(dt);
+      if (change) {
+        this.preset = change.preset;
+        this.renderScale = change.renderScale;
+        this.qualityLog = change.reason;
+        this.applyQuality();
+      }
+    }
 
     this.handleMenuKeys();
     if (!this.pause.paused) {
@@ -352,20 +436,13 @@ export class GameApp {
       if (steps === BALANCE.sim.maxStepsPerFrame) this.acc = 0; // avoid a death spiral
     }
     const alpha = this.pause.paused ? 1 : this.acc / STEP;
+    // Behind a menu the world is frozen and mostly covered: redraw it at a third of the rate
+    // to save battery and keep the menu itself smooth.
+    if (this.pause.has('USER_MENU') && this.menuFrame++ % 3 !== 0) {
+      this.ui.update(this.lastHud!);
+      return;
+    }
     this.render(this.pause.paused ? 0 : dt, alpha);
-  }
-
-  private adaptQuality(dt: number): void {
-    if (dt <= 0) return;
-    if (this.fps < 28 && this.pixelRatio > 0.8) {
-      this.slowFrames++;
-      if (this.slowFrames > 180) {
-        this.pixelRatio = Math.max(0.75, this.pixelRatio - 0.15);
-        this.renderer.setPixelRatio(this.pixelRatio);
-        this.renderer.setSize(this.container.clientWidth, this.container.clientHeight, false);
-        this.slowFrames = 1;
-      }
-    } else if (this.slowFrames > 1) this.slowFrames--;
   }
 
   private handleMenuKeys(): void {
@@ -725,6 +802,7 @@ export class GameApp {
     ch.root.updateMatrixWorld(true);
 
     this.world.update(dt, dn.nightBlend, ev.openness, ev.phase === 'notice');
+    this.world.cullGrass(this.cam.camera.position);
     this.npcs.update(dt, ev.openness, s.settings.reducedMotion);
     this.updateBobberAndLine(dt);
     this.updateReveal(dt);
@@ -742,11 +820,12 @@ export class GameApp {
       }
     }
     if (!this.renderError) this.renderer.render(this.world.scene, this.cam.camera);
-    this.ui.update(this.hudView(dn, ev));
+    this.lastHud = this.hudView(dn, ev);
+    this.ui.update(this.lastHud);
   }
 
   private updateBobberAndLine(dt: number): void {
-    const tip = new THREE.Vector3();
+    const tip = this.sTip;
     this.character.rodTip.getWorldPosition(tip);
     const st = this.fishing.state;
     const p = this.fishing.pool ? this.world.pools.get(this.fishing.pool) : null;
@@ -754,7 +833,7 @@ export class GameApp {
     let sag = 0.25;
     switch (this.bobberPhase) {
       case 'hang':
-        this.bobberPos.copy(tip).add(new THREE.Vector3(0, -0.55, 0));
+        this.bobberPos.copy(tip).setY(tip.y - 0.55);
         sag = 0;
         break;
       case 'flight': {
@@ -775,15 +854,15 @@ export class GameApp {
       case 'reel': {
         const r = this.fishing.reel?.state;
         if (r && p) {
-          const toPlayer = new THREE.Vector3(this.player.pos.x - this.bobberLanding.x, 0, this.player.pos.z - this.bobberLanding.z);
+          const toPlayer = this.sA.set(this.player.pos.x - this.bobberLanding.x, 0, this.player.pos.z - this.bobberLanding.z);
           const len = toPlayer.length();
           toPlayer.normalize();
-          const side = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x);
+          const side = this.sB.set(-toPlayer.z, 0, toPlayer.x);
           const lateral = (r.fishPos - 0.5) * Math.min(p.radius * 0.9, 3);
           const pull = Math.min(len - 0.9, r.progress * Math.max(0, p.radius * 0.6));
           this.bobberPos.copy(this.bobberLanding).addScaledVector(side, lateral).addScaledVector(toPlayer, Math.max(0, pull));
           // keep inside the water
-          const off = new THREE.Vector3(this.bobberPos.x - p.x, 0, this.bobberPos.z - p.z);
+          const off = this.sC.set(this.bobberPos.x - p.x, 0, this.bobberPos.z - p.z);
           if (off.length() > p.radius - 0.35) off.setLength(p.radius - 0.35);
           this.bobberPos.set(p.x + off.x, p.surfaceY - 0.03 + Math.sin(t * 20) * 0.02, p.z + off.z);
           if (dt > 0 && Math.random() < (r.inside ? 0.25 : 0.6)) this.particles.splash(this.bobberPos.x, p.surfaceY + 0.02, this.bobberPos.z, 2, 0.15);
@@ -793,7 +872,7 @@ export class GameApp {
         break;
       }
       case 'gone':
-        this.bobberPos.copy(tip).add(new THREE.Vector3(0, -0.55, 0));
+        this.bobberPos.copy(tip).setY(tip.y - 0.55);
         sag = 0;
         break;
     }
@@ -818,11 +897,11 @@ export class GameApp {
     const ev = this.eventInfo;
     const rift = POOLS_BY_ID.rift;
     if ((ev.phase === 'notice' || ev.phase === 'opening' || ev.phase === 'open') && Math.hypot(this.player.pos.x - rift.x, this.player.pos.z - rift.z) > rift.radius + 3)
-      return new THREE.Vector3(rift.x, 0, rift.z + rift.radius + 1.2);
+      return this.sBeacon.set(rift.x, 0, rift.z + rift.radius + 1.2);
     const needSell = (s.bagFull() && s.bagUsed > 0) || (s.state.tutorial.firstCatch && !s.state.tutorial.firstSale && !s.state.tutorial.skipped && s.bagUsed > 0);
-    if (needSell) return new THREE.Vector3(LANDMARKS.stand.x + 1.3, 0, LANDMARKS.stand.z + 2.2);
+    if (needSell) return this.sBeacon.set(LANDMARKS.stand.x + 1.3, 0, LANDMARKS.stand.z + 2.2);
     if (s.state.tutorial.firstSale && !s.state.tutorial.firstPurchase && !s.state.tutorial.skipped && s.state.coins >= Math.min(UPGRADES[2].costs[0], RODS[1].cost))
-      return new THREE.Vector3(LANDMARKS.workshop.x - 0.6, 0, LANDMARKS.workshop.z + 2.6);
+      return this.sBeacon.set(LANDMARKS.workshop.x - 0.6, 0, LANDMARKS.workshop.z + 2.6);
     return null;
   }
 
@@ -834,7 +913,7 @@ export class GameApp {
 
   // ------------------------------------------------------------------ HUD view
   private project(v: THREE.Vector3): { x: number; y: number; visible: boolean } {
-    const p = v.clone().project(this.cam.camera);
+    const p = this.sProj.copy(v).project(this.cam.camera);
     const w = this.container.clientWidth;
     const h = this.container.clientHeight;
     return { x: (p.x * 0.5 + 0.5) * w, y: (-p.y * 0.5 + 0.5) * h, visible: p.z < 1 && p.z > -1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1 };
@@ -942,7 +1021,7 @@ export class GameApp {
 
     let cast: HudView['cast'] = null;
     if (st === 'ChargeCast') {
-      const head = this.project(this.character.root.position.clone().add(new THREE.Vector3(0, 1.1, 0)));
+      const head = this.project(this.sA.copy(this.character.root.position).setY(this.character.root.position.y + 1.1));
       const w = this.container.clientWidth;
       cast = { x: Math.min(w - 120, head.x + 70), y: head.y, marker: this.fishing.chargeMarker };
     }
@@ -984,9 +1063,10 @@ export class GameApp {
       touch: this.input.isTouch,
       joy: this.input.joy,
       debug: DEBUG
-        ? `fps ${this.fps.toFixed(0)} · ${st}\npause [${this.pause.list().join(',')}]\npool ${pool ?? '-'} rod ${s.rod.id} (${s.rod.maxWeight}kg)\nroll ${this.fishing.roll ? `${this.fishing.roll.speciesId} ${this.fishing.roll.weight}kg ${this.fishing.roll.modifier} seed ${this.fishing.roll.motionSeed}` : '-'}\nclock ${s.state.worldClock.toFixed(0)} ${dn.phase} event ${ev.phase} ${ev.remaining.toFixed(0)}s\ncalls ${this.renderer.info.render.calls} tris ${this.renderer.info.render.triangles}\nsave ${this.repo.backendName} ${rs.kind} · ${this.platform.kind}`
+        ? `fps ${this.fps.toFixed(0)} · ${st}\npause [${this.pause.list().join(',')}]\npool ${pool ?? '-'} rod ${s.rod.id} (${s.rod.maxWeight}kg)\nroll ${this.fishing.roll ? `${this.fishing.roll.speciesId} ${this.fishing.roll.weight}kg ${this.fishing.roll.modifier} seed ${this.fishing.roll.motionSeed}` : '-'}\nclock ${s.state.worldClock.toFixed(0)} ${dn.phase} event ${ev.phase} ${ev.remaining.toFixed(0)}s\ncalls ${this.renderer.info.render.calls} tris ${this.renderer.info.render.triangles}\nquality ${this.preset} x${this.renderScale} pr ${this.pixelRatio.toFixed(2)} ${this.qualityLog}\ngpu ${this.gpu.slice(0, 40)}\nsave ${this.repo.backendName} ${rs.kind} · ${this.platform.kind}`
         : null,
       eventVignette: ev.phase === 'open' && pool === 'rift',
+      fps: s.state.settings.showFps ? { fps: this.fpsWindow.value, label: `${this.preset}${this.renderScale < 1 ? ` ${Math.round(this.renderScale * 100)}%` : ''}${s.state.settings.quality === 'auto' ? ' · auto' : ''}` } : null,
     };
   }
 
@@ -1017,6 +1097,8 @@ export class GameApp {
       triangles: this.renderer.info.render.triangles,
       fps: this.fps,
       rod: RODS_BY_ID[this.store.state.equippedRod].id,
+      quality: `${this.preset}@${this.renderScale}`,
+      gpu: this.gpu,
       revealW: this.cam.revealWeight,
       cam: this.cam.camera.position.toArray().map((v) => +v.toFixed(2)),
       fish: this.reveal ? this.reveal.fish.position.toArray().map((v) => +v.toFixed(2)) : null,

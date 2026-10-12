@@ -1,5 +1,65 @@
 # QA report
 
+## Round 2: visual upgrade and performance (latest)
+
+**What changed:**
+- Painted terrain patches; about 1,800 clustered, wind-swayed grass tufts at Medium.
+- Teal depth-gradient water with vertex waves, caustics and four ripple slots.
+- Splash mist.
+- Re-rigged angler with elbows, knees and torso twist, and new cast, reel-crank, celebrate and
+  idle animations.
+- Cleaner HUD: status card, rarity-ribboned reveal card with a value count-up, rarity-striped
+  inventory with sort chips, and shop stat bars.
+- Quality presets with Auto adjustment and an FPS readout.
+
+**Before/after frame rate.** Same machine and same headless Chromium, 1280×720, `scripts/bench.mjs`.
+This renderer is **SwiftShader (CPU)**, so treat absolute numbers as a worst-case slow device,
+not a gaming PC. "Before" is the previous commit's build.
+
+| Build / setting | Idle view | Camera orbit | Walking | Worst frame (idle) |
+| --- | --- | --- | --- | --- |
+| Before (old default) | 7.5 fps | 17.8 fps | 27.8 fps | 383 ms |
+| **After, Auto (new default)** | **11.1 fps** | **29.1 fps** | **50.2 fps** | **183 ms** |
+| After, fixed Low | 9.7 | 19.8 | 30.4 | 267 ms |
+| After, fixed Medium | 6.0 | 12.2 | 17.2 | 333 ms |
+| After, fixed High | 4.3 | 9.9 | 15.0 | 409 ms |
+
+How to read this:
+- Auto detected the software renderer, started on Low, and lowered resolution to 80% and then
+  60%. On this worst-case device the default experience got **+48% to +80% fps** with shorter
+  worst frames.
+- Fixed Medium/High are *heavier* than the old build here. That is expected: more grass
+  triangles and antialiasing are costly on a CPU rasterizer.
+- Measured with feature switches (`?exp=` in the QA build) at Medium on this renderer:
+  - Antialiasing costs about 30% (fps 4.4 → 6.0 with it off).
+  - Grass costs about 30% without antialiasing (7.2 → 10.1 with it removed).
+  - Water detail, villagers and the character are within noise.
+- **Real-GPU frame rates were not measured**, because no GPU is available in this environment.
+  On a real device, Auto keeps adjusting if it can't hold about 47 fps.
+
+Main-thread JavaScript stays at roughly 1–4 ms per frame in normal scenes, so CPU-side game
+logic is not the limit.
+
+**Regression runs on the round-2 build:**
+
+| Run | Result |
+| --- | --- |
+| 1280×720 keyboard/mouse full loop | ✅ 3/3 caught, sold ¢89, persisted after reload, no errors |
+| 800×450 touch full loop (joystick + action button) | ✅ joystick x 0 → 3.04; 3/3 caught; sold; persisted; no errors |
+| Hidden tab mid-fight | ✅ progress frozen (21.67% → 21.67%), still Reeling on return |
+| Menus opened/closed 100× | ✅ DOM nodes 100 → 99; no stuck pause reasons |
+| Night | ✅ readable |
+| Unit tests | ✅ 50/50, including 6 new auto-quality tests (stays put in band, steps down resolution-first, never retries a failed rung, ignores pauses) |
+| CrazyGames compliance sweep | ✅ see `PLATFORM_NOTES.md` checklist |
+
+Not re-run in round 2:
+- The Rift Bloom event script (event logic is unchanged and covered by unit tests).
+- The 907×510 and 821×462 sizes.
+
+---
+
+## Round 1
+
 **Date:** 12 Oct 2026
 
 **Environment:**

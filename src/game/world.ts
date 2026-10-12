@@ -4,7 +4,9 @@ import type { PoolId } from '../data/types';
 import { createRng } from '../logic/rng';
 import { blobShadow, flat, PALETTE, signTexture } from './materials';
 import { bakeStatic } from './bake';
-import { createSkyMaterial, createWaterMaterial, type WaterMaterial } from './water';
+import { applyWind, GrassField, terrainMaterial, WIND } from './nature';
+import type { QualityLevel } from './quality';
+import { createSkyMaterial, createWaterMaterial, waterGeometry, type WaterMaterial } from './water';
 
 export type Collider =
   | { kind: 'circle'; x: number; z: number; r: number; h: number; tag?: string; active?: boolean }
@@ -68,6 +70,11 @@ export class World {
   private sea!: THREE.Mesh;
   private seaMat!: THREE.MeshLambertMaterial;
   private meadowRadius = 3.2;
+  private terrainMat = terrainMaterial(PALETTE.grass, WALK_A * 1.12, WALK_B * 1.12);
+  private waterGeo = waterGeometry();
+  private grass = new GrassField(5200);
+  private flowerMesh: THREE.InstancedMesh | null = null;
+  private level: QualityLevel | null = null;
   private time = 0;
 
   constructor() {
@@ -136,7 +143,7 @@ export class World {
     geo.rotateX(-Math.PI / 2);
     geo.computeBoundingBox();
     geo.translate(0, -geo.boundingBox!.max.y, 0);
-    this.island = new THREE.Mesh(geo, [flat(PALETTE.grass), flat(PALETTE.sand)]);
+    this.island = new THREE.Mesh(geo, [this.level && !this.level.terrainDetail ? flat(PALETTE.grass) : this.terrainMat, flat(PALETTE.sand)]);
     this.scene.add(this.island);
   }
 
@@ -191,7 +198,7 @@ export class World {
     const isRift = id === 'rift';
     const mat = createWaterMaterial();
     if (isRift) mat.uniforms.uGlow.value = 1;
-    const water = new THREE.Mesh(new THREE.CircleGeometry(1, 56).rotateX(-Math.PI / 2), mat);
+    const water = new THREE.Mesh(this.waterGeo, mat);
     const surfaceY = isRift ? 0.06 : -0.22;
     water.position.y = surfaceY;
     group.add(water);
@@ -244,9 +251,53 @@ export class World {
     this.anchors.push({ id: `sign:${id}`, pos: new THREE.Vector3(sx, 2.2, sz) });
   }
 
+  /** Where grass may grow: on the island, off paths, out of water and buildings. */
+  private grassOk = (x: number, z: number): boolean => {
+    if ((x / (WALK_A + 0.8)) ** 2 + (z / (WALK_B + 0.8)) ** 2 > 1) return false;
+    for (const p of POOLS) {
+      const r = p.id === 'meadow' ? this.meadowRadius : p.radius;
+      if (Math.hypot(x - p.x, z - p.z) < r + (p.id === 'rift' ? 0.6 : 0.42)) return false;
+    }
+    for (const l of Object.values(LANDMARKS)) if (Math.hypot(x - l.x, z - l.z) < 2.4) return false;
+    for (const path of PATHS) {
+      for (let i = 0; i < path.length - 1; i++) {
+        if (distToSeg(x, z, path[i][0], path[i][1], path[i + 1][0], path[i + 1][1]) < 1.45) return false;
+      }
+    }
+    return true;
+  };
+
+  private scatterGrass(): void {
+    this.grass.scatter(createRng(4242), this.grassOk, { a: WALK_A + 0.5, b: WALK_B + 0.5 });
+    if (this.level) this.grass.setCount(this.level.grass);
+  }
+
+  cullGrass(cam: THREE.Vector3): void {
+    this.grass.cull(cam, 42);
+  }
+
+  /** QA experiment: plain terrain material. */
+  debugPlainTerrain(): void {
+    (this.island.material as THREE.Material[])[0] = flat(PALETTE.grass);
+  }
+
+  /** Apply a quality preset: grass density, flowers, wind, water detail, extras. */
+  setQuality(level: QualityLevel): void {
+    this.level = level;
+    this.grass.setCount(level.grass);
+    if (this.flowerMesh) this.flowerMesh.count = Math.min(level.flowers, this.flowerMesh.instanceMatrix.count);
+    WIND.uWind.value = level.wind ? 1 : 0;
+    // low preset: plain ground color instead of the painted terrain texture
+    (this.island.material as THREE.Material[])[0] = level.terrainDetail ? this.terrainMat : flat(PALETTE.grass);
+    for (const p of this.pools.values()) p.mat.uniforms.uDetail.value = level.waterDetail ? 1 : 0;
+    this.stars.visible = level.extras;
+    this.lampGlowMat.visible = level.extras;
+  }
+
   setMeadowRadius(r: number): void {
     if (Math.abs(r - this.meadowRadius) < 1e-4) return;
     this.meadowRadius = r;
+    this.scatterGrass();
     const v = this.pools.get('meadow')!;
     this.applyPoolRadius(v, r);
     this.buildIsland();
@@ -479,7 +530,7 @@ export class World {
       bushes.push(tmp.matrix.clone());
     });
     const flowerColors = ['#ffffff', '#ffd1e8', '#fff08a', '#c9b8ff', '#ff9e7a'];
-    place(160, -1.2, false, (x, z) => {
+    place(320, -1.2, false, (x, z) => {
       tmp.position.set(x, 0.12, z);
       tmp.rotation.set(0, rng.next() * 3, 0);
       tmp.scale.setScalar(0.8 + rng.next() * 0.6);
@@ -494,16 +545,24 @@ export class World {
       return im;
     };
     inst(trunkGeo, flat(PALETTE.wood), trunks);
-    inst(canopyGeo, flat('#3fae5b'), trees);
-    inst(coneGeo, flat('#2f8f58'), pines);
+    const windy = (color: string, base: number, amp: number) => {
+      const m = new THREE.MeshLambertMaterial({ color, flatShading: true });
+      applyWind(m, base, amp);
+      return m;
+    };
+    inst(canopyGeo, windy('#3fae5b', -1, 0.012), trees);
+    inst(coneGeo, windy('#2f8f58', -1.1, 0.012), pines);
     inst(rockGeo, flat(PALETTE.stone), rocks);
-    inst(bushGeo, flat('#4fbf5f'), bushes);
+    inst(bushGeo, windy('#4fbf5f', -0.6, 0.05), bushes);
     const fl = new THREE.InstancedMesh(flowerGeo, new THREE.MeshLambertMaterial({ flatShading: true }), flowers.length);
     flowers.forEach((f, i) => {
       fl.setMatrixAt(i, f.m);
       fl.setColorAt(i, f.c);
     });
     this.scene.add(fl);
+    this.flowerMesh = fl;
+    this.scatterGrass();
+    this.scene.add(this.grass.group);
     // tree contact shadows, instanced
     const sh = blobShadow(1);
     const shadowInst = new THREE.InstancedMesh(sh.geometry, sh.material, shadows.length);
@@ -591,6 +650,7 @@ export class World {
   // ---------------------------------------------------------------- per-frame
   update(dt: number, nightBlend: number, riftOpenness: number, riftNotice: boolean): void {
     this.time += dt;
+    WIND.uTime.value = this.time;
     const n = nightBlend;
     const u = this.skyMat.uniforms;
     (u.uTop.value as THREE.Color).copy(PALETTE.daySky).lerp(PALETTE.nightSky, n);
@@ -610,7 +670,7 @@ export class World {
     for (const p of this.pools.values()) {
       p.mat.uniforms.uTime.value = this.time;
       p.mat.uniforms.uNight.value = n;
-      for (const r of [p.mat.uniforms.uRipple0.value, p.mat.uniforms.uRipple1.value]) {
+      for (const r of p.mat.uniforms.uRipples.value) {
         if (r.w > 0) {
           r.z += dt;
           if (r.z > 1.5) r.w = 0;
@@ -651,9 +711,15 @@ export class World {
     // CircleGeometry UVs map [-r, r] to [0, 1]; the disc was rotated so world -z maps to +v.
     const u = 0.5 + (wx - p.x) / (2 * scale);
     const v = 0.5 - (wz - p.z) / (2 * scale);
-    const a = p.mat.uniforms.uRipple0.value;
-    const b = p.mat.uniforms.uRipple1.value;
-    const slot = a.w <= 0 || (b.w > 0 && a.z > b.z) ? a : b;
+    // reuse an idle slot, otherwise the oldest ripple
+    let slot = p.mat.uniforms.uRipples.value[0];
+    for (const r of p.mat.uniforms.uRipples.value) {
+      if (r.w <= 0) {
+        slot = r;
+        break;
+      }
+      if (r.z > slot.z) slot = r;
+    }
     slot.set(u, v, 0, strength);
   }
 

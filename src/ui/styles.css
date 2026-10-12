@@ -307,3 +307,117 @@ input[type='range'] { width: min(220px, 40vw); accent-color: var(--cyan); height
   .goal.event, .action-btn.hook, .hint-bubble { animation: none; }
 }
 .reduced-motion .goal.event, .reduced-motion .action-btn.hook, .reduced-motion .hint-bubble, .reduced-motion .toast, .reduced-motion .catch-card { animation: none !important; }
+
+/* =====================================================================
+   v2 polish: lighter HUD chrome, rarity-coded cards, stat bars, reveal
+   (no backdrop-filter anywhere: it is expensive on low-end GPUs)
+   ===================================================================== */
+:root {
+  --glass: rgba(14, 33, 53, 0.8);
+  --glass-strong: rgba(14, 33, 53, 0.94);
+  --hair: rgba(255, 255, 255, 0.1);
+  --lift: 0 4px 14px rgba(5, 18, 32, 0.22);
+}
+.pill, .goal, .icon-btn, .wlabel, .toast, .reel, .lures, .controls-hint {
+  background: var(--glass);
+  border: 1px solid var(--hair);
+  box-shadow: var(--lift);
+}
+.icon-btn { border-radius: 14px; }
+.icon-btn:hover { background: var(--glass-strong); }
+.goal { border-radius: 12px; font-size: 15px; padding: 7px 14px; }
+.goal small { font-size: 12.5px; }
+.goal.event { border-color: rgba(255, 139, 224, 0.7); }
+
+.status-card {
+  display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: 16px;
+  background: var(--glass); border: 1px solid var(--hair); box-shadow: var(--lift); min-width: 132px;
+}
+.stat-row {
+  display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 4px; border-radius: 11px; font-weight: 800;
+  font-size: 17px; font-variant-numeric: tabular-nums; color: var(--cream); background: transparent; border: none;
+  font-family: inherit; text-align: left; min-height: 36px;
+}
+.stat-row .ico { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; flex: none; }
+.stat-row.bag { cursor: pointer; position: relative; }
+.stat-row.bag:hover { background: rgba(255, 255, 255, 0.06); }
+.stat-row.bag.full { color: #ffc4c4; }
+.bagbar { flex: 1; height: 6px; min-width: 36px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); overflow: hidden; display: block; }
+.bagbar i { display: block; height: 100%; background: linear-gradient(90deg, #4fe3f0, #7ee081); border-radius: 3px; transition: width 0.25s; }
+.stat-row.bag.full .bagbar i { background: linear-gradient(90deg, #ff9a7b, #ff6b6b); }
+.bagbar.wide { width: 120px; flex: none; }
+.fps-chip { font-size: 12px; font-variant-numeric: tabular-nums; padding: 5px 10px; min-height: 0; color: var(--good); }
+.fps-chip.bad { color: #ffb3a1; }
+
+.action-btn { box-shadow: 0 5px 0 #b66a00, 0 10px 24px rgba(5, 18, 32, 0.3); }
+.hint-bubble .btn.ghost { color: var(--ui); border-color: var(--ui); }
+
+/* ---- reveal card ---- */
+.catch-card {
+  width: min(300px, 42vw); padding: 0 0 14px; overflow: hidden; border: 1px solid var(--hair);
+  background: var(--glass-strong); box-shadow: 0 0 0 2px var(--rc), 0 12px 40px rgba(5, 18, 32, 0.4);
+}
+.catch-card .ribbon {
+  display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; font-weight: 900; font-size: 13px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: #10243a; background: var(--rc);
+}
+.catch-card .badge-new { background: #10243a; color: #ffd23f; border-radius: 6px; padding: 2px 7px; font-size: 11px; letter-spacing: 0.08em; }
+.catch-card h2 { margin: 10px 14px 6px; font-size: 25px; }
+.catch-card .tags { padding: 0 14px; min-height: 0; }
+.catch-card .tag { color: #10243a; font-size: 12px; }
+.catch-card .tag.mod { background: #ffd23f; }
+.catch-card .tag.match { background: #7ee081; }
+.catch-card .tag.record { background: #ffb6f2; }
+.catch-card .figures { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 14px 6px; }
+.catch-card .figures > div { background: rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 8px 10px; }
+.catch-card .figures small { display: block; color: var(--muted); font-size: 12px; font-weight: 700; }
+.catch-card .big-val { font-size: 21px; font-variant-numeric: tabular-nums; }
+.catch-card .meta-row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 14px; color: var(--muted); font-size: 13px; }
+.catch-card .btn { width: calc(100% - 28px); margin: 10px 14px 0; }
+.catch-card .note { padding: 0 14px; }
+.catch-card.r-epic, .catch-card.r-legendary { animation: cardIn 0.3s ease-out, glow 1.6s ease-in-out infinite alternate; }
+@keyframes glow { to { box-shadow: 0 0 0 2px var(--rc), 0 0 34px var(--rc); } }
+.rarity-flash { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 140px var(--rc); animation: flash 1.2s ease-out forwards; }
+@keyframes flash { from { opacity: 0.9; } to { opacity: 0; } }
+
+/* ---- inventory ---- */
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--hair); background: var(--ui-2);
+  color: var(--muted); font-weight: 800; font-size: 14px; cursor: pointer; font-family: inherit;
+}
+.chip.on { background: var(--cyan); color: var(--ui); border-color: transparent; }
+.chip:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.slots { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; }
+.fish-card {
+  border: 1px solid var(--hair); border-top: 4px solid var(--rc); padding-top: 12px;
+  background: var(--ui-2);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 16%, var(--ui-2)) 0%, var(--ui-2) 55%);
+}
+.fish-card.sel { border-color: var(--amber); border-top-color: var(--amber); box-shadow: 0 0 0 2px var(--amber); }
+.fish-card.fav-on { opacity: 0.92; }
+.fish-card .card-foot { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.fish-card .val { font-size: 15px; }
+.panel { border: 1px solid rgba(79, 227, 240, 0.25); }
+.panel footer .total { font-variant-numeric: tabular-nums; }
+
+/* ---- shop stat bars ---- */
+.statbar { display: flex; flex-direction: column; gap: 3px; }
+.statbar-top { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+.statbar-top b { color: var(--cream); font-variant-numeric: tabular-nums; }
+.statbar-track { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.statbar-track i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--cyan), #7ee081); }
+.rod { gap: 8px; border: 1px solid var(--hair); }
+.rod.equipped { box-shadow: 0 0 0 2px var(--good); }
+.upg { border: 1px solid var(--hair); }
+
+@media (max-height: 520px) {
+  .stat-row { font-size: 15px; min-height: 30px; }
+  .status-card { padding: 4px; min-width: 116px; }
+  .catch-card h2 { font-size: 20px; margin-top: 6px; }
+  .catch-card .figures { margin-top: 6px; }
+  .catch-card .big-val { font-size: 18px; }
+  .catch-card .note { display: none; }
+}
+.reduced-motion .catch-card.r-epic, .reduced-motion .catch-card.r-legendary, .reduced-motion .rarity-flash { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .catch-card.r-epic, .catch-card.r-legendary, .rarity-flash { animation: none; } }

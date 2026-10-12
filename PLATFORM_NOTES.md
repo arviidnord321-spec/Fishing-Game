@@ -106,6 +106,27 @@ user gesture and resumes on later gestures (for iOS interruptions).
 - Villagers are labeled "Villager … · NPC". The help text states there is no online
   multiplayer.
 
+## CrazyGames requirements checklist
+
+Statuses are what the code does and what the automated checks verified. **None of this is a
+platform approval.**
+
+| Requirement (from the guide's summary of the CrazyGames docs) | Status |
+| --- | --- |
+| Initial download ≤ 50 MB (≤ 20 MB for the mobile homepage), ≤ 1,500 files | ✅ about 0.76 MB, 3 files |
+| Gameplay starts immediately or within one click | ✅ loads straight into play beside Meadow Pool |
+| No in-game fullscreen button, no external links, no cross-promotion, no store badges | ✅ grep sweep of `src/` and `index.html` found no URLs except the SDK, and no `requestFullscreen`/`window.open` |
+| No browser dialogs (`alert`/`confirm`/`prompt`) | ✅ in-game confirmation panel only |
+| Frame-rate-independent gameplay | ✅ fixed 1/60 s simulation step (unit-tested at 30 Hz vs 144 Hz) |
+| Pause and mute when an ad plays; no ads during gameplay; no ads in Basic | ✅ in code and tests (Full build only, cosmetic, optional) |
+| `gameplayStart`/`gameplayStop` only on real transitions | ✅ deduplicated; menus and ads only |
+| Respect the platform mute setting | ✅ `muteAudio` OR-ed with local volume, ad and hidden flags |
+| Progress through the SDK Data module, no parallel localStorage save | ✅ in CrazyGames builds |
+| Keyboard input doesn't scroll the host page; Esc and browser shortcuts not used | ✅ |
+| Mild content (PEGI 12 bound), English | ✅ |
+| No console logging in normal play | ✅ no `console.log/info/debug` in `src/`; warnings only on SDK init failure |
+| Runs smoothly on lower-end hardware | ⚠️ Auto quality detects software rendering and adapts at runtime. Measured only in a CPU-rendered headless Chromium; **real-device testing is still required** |
+
 ## Requires Developer Portal / owner action
 
 - Review and accept the current developer agreement yourself. This project did **not** accept

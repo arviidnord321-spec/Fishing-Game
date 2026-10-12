@@ -35,11 +35,32 @@ export function bakeChildrenByColor(group: THREE.Object3D): void {
     m.updateMatrix();
     return prepared(m, m.matrix, (m.material as THREE.MeshLambertMaterial).color);
   });
+  // remember each source mesh's vertex range so parts can be recolored later
+  const ranges: { start: number; count: number }[] = [];
+  let start = 0;
+  for (const g of geos) {
+    ranges.push({ start, count: g.attributes.position.count });
+    start += g.attributes.position.count;
+  }
   const merged = mergeGeometries(geos);
   for (const g of geos) g.dispose();
   if (!merged) return;
   for (const m of meshes) group.remove(m);
-  group.add(new THREE.Mesh(merged, vcMaterial));
+  const baked = new THREE.Mesh(merged, vcMaterial);
+  baked.userData.ranges = ranges;
+  baked.name = 'baked';
+  group.add(baked);
+}
+
+/** Recolor the `part`-th original mesh inside a group baked by bakeChildrenByColor. */
+export function recolorBakedPart(group: THREE.Object3D, part: number, color: string): void {
+  const baked = group.children.find((c) => c.name === 'baked') as THREE.Mesh | undefined;
+  const range = baked?.userData.ranges?.[part] as { start: number; count: number } | undefined;
+  if (!baked || !range) return;
+  const attr = baked.geometry.attributes.color as THREE.BufferAttribute;
+  const c = new THREE.Color(color);
+  for (let i = range.start; i < range.start + range.count; i++) attr.setXYZ(i, c.r, c.g, c.b);
+  attr.needsUpdate = true;
 }
 
 /** Merges every static mesh under `root` (world space) into one mesh per material. */

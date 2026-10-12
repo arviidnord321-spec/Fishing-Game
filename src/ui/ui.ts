@@ -49,6 +49,7 @@ export interface HudView {
   joy: { active: boolean; cx: number; cy: number; px: number; py: number };
   debug: string | null;
   eventVignette: boolean;
+  fps: { fps: number; label: string } | null;
 }
 
 export interface CatchCardInfo {
@@ -113,6 +114,15 @@ export class UI {
   private actionDown = false;
   private lastLures = '';
   private confirmEl: HTMLElement | null = null;
+  private hintText: string | null = null;
+  private hintPlaced = 0;
+  private rootRect: DOMRect = new DOMRect();
+
+  /** Cache the HUD root's box; called on resize so per-frame code never reads layout. */
+  setViewport(): void {
+    this.rootRect = this.root.getBoundingClientRect();
+    this.hintPlaced = 0;
+  }
 
   constructor(parent: HTMLElement, private d: UIDeps) {
     this.root = h('div', { id: 'ui' });
@@ -135,13 +145,17 @@ export class UI {
     E.vignette = h('div', { class: 'vignette-event' });
     E.coins = h('span');
     E.bagCount = h('span');
-    E.coinPill = h('div', { class: 'pill', 'aria-label': 'Coins' }, h('span', { class: 'ico coin-ico' }, '¢'), E.coins);
-    E.bagPill = h('button', { class: 'pill interactive', 'aria-label': 'Open bag', onclick: () => this.toggle('bag') }, h('span', { class: 'ico bag-ico' }, '◧'), E.bagCount);
-    E.bagPill.style.border = '2px solid rgba(255,255,255,0.12)';
-    E.bagPill.style.color = 'inherit';
-    E.bagPill.style.cursor = 'pointer';
+    E.coinPill = h('div', { class: 'stat-row coin', 'aria-label': 'Coins' }, h('span', { class: 'ico coin-ico' }, '¢'), E.coins);
+    E.bagFill = h('i');
+    E.bagPill = h(
+      'button',
+      { class: 'stat-row bag interactive', 'aria-label': 'Open bag', onclick: () => this.toggle('bag') },
+      h('span', { class: 'ico bag-ico' }, '◧'),
+      E.bagCount,
+      h('span', { class: 'bagbar', 'aria-hidden': 'true' }, E.bagFill),
+    );
     E.save = h('div', { class: 'pill save-chip' });
-    const topLeft = h('div', { class: 'top-left' }, E.coinPill, E.bagPill, E.save);
+    const topLeft = h('div', { class: 'top-left' }, h('div', { class: 'status-card' }, E.coinPill, E.bagPill), E.save);
 
     E.goal = h('div', { class: 'goal', role: 'status', 'aria-live': 'polite' });
     const topCenter = h('div', { class: 'top-center' }, E.goal);
@@ -150,7 +164,8 @@ export class UI {
     E.phaseIco = h('span', { class: 'ico' }, '☀');
     E.phase = h('div', { class: 'pill phase' }, E.phaseIco, E.phaseLbl);
     E.pauseBtn = h('button', { class: 'icon-btn', 'aria-label': 'Pause and settings', title: 'Pause (P)', onclick: () => this.toggle('pause') }, 'II');
-    const topRight = h('div', { class: 'top-right' }, E.phase, E.pauseBtn);
+    E.fps = h('div', { class: 'pill fps-chip', 'aria-label': 'Frame rate' });
+    const topRight = h('div', { class: 'top-right' }, E.fps, E.phase, E.pauseBtn);
 
     E.bagBtn = h('button', { class: 'icon-btn', 'aria-label': 'Bag', title: 'Bag (B)', onclick: () => this.toggle('bag') }, '◧', h('span', { class: 'lbl' }, 'BAG'));
     E.journalBtn = h('button', { class: 'icon-btn', 'aria-label': 'Journal', title: 'Journal (J)', onclick: () => this.toggle('journal') }, '✎', h('span', { class: 'lbl' }, 'BOOK'));
@@ -237,7 +252,15 @@ export class UI {
     setText(E.coins, fmtCompact(v.coins));
     E.coinPill.title = `${fmtCoins(v.coins)} coins`;
     setText(E.bagCount, `${v.bagUsed}/${v.bagCap}`);
-    E.bagPill.style.borderColor = v.bagUsed >= v.bagCap ? '#ff7b7b' : 'rgba(255,255,255,0.12)';
+    const full = v.bagUsed >= v.bagCap;
+    E.bagPill.classList.toggle('full', full);
+    const fillPct = `${Math.min(100, (v.bagUsed / Math.max(1, v.bagCap)) * 100)}%`;
+    if (E.bagFill.style.width !== fillPct) E.bagFill.style.width = fillPct;
+    show(E.fps, !!v.fps);
+    if (v.fps) {
+      setText(E.fps, `${Math.round(v.fps.fps)} FPS · ${v.fps.label}`);
+      E.fps.classList.toggle('bad', v.fps.fps < 40);
+    }
     setHtml(E.goal, `${esc(v.goal.text)}${v.goal.sub ? `<small>${esc(v.goal.sub)}</small>` : ''}`);
     E.goal.classList.toggle('event', !!v.goal.event);
     setText(E.phaseLbl, v.phase.label);
@@ -295,16 +318,23 @@ export class UI {
 
     show(E.fishOn, v.fishOn);
     if (v.hint) {
-      setHtml(E.hint, `${esc(v.hint)}<br><button class="btn small ghost" style="color:var(--ui);border-color:var(--ui)" data-skip="1">Skip tips</button>`);
+      const changed = this.hintText !== v.hint;
+      this.hintText = v.hint;
+      setHtml(E.hint, `${esc(v.hint)}<br><button class="btn small ghost" data-skip="1">Skip tips</button>`);
       const btn = E.hint.querySelector('[data-skip]') as HTMLButtonElement | null;
       if (btn && !btn.onclick) btn.onclick = () => this.d.onSkipTutorial();
       show(E.hint, true);
       // Sit above the whole control column so the bubble never covers lures or interact.
-      const r = E.action.getBoundingClientRect();
-      const col = E.bottomRight.getBoundingClientRect();
-      const rootR = this.root.getBoundingClientRect();
-      E.hint.style.right = `${Math.max(8, rootR.right - r.right - 10)}px`;
-      E.hint.style.bottom = `${rootR.bottom - col.top + 14}px`;
+      // Layout is read at most twice a second (reading it every frame forces a reflow).
+      const now = performance.now();
+      if (changed || now - this.hintPlaced > 500) {
+        this.hintPlaced = now;
+        const r = E.action.getBoundingClientRect();
+        const col = E.bottomRight.getBoundingClientRect();
+        const rootR = this.rootRect;
+        E.hint.style.right = `${Math.max(8, rootR.right - r.right - 10)}px`;
+        E.hint.style.bottom = `${rootR.bottom - col.top + 14}px`;
+      }
     } else show(E.hint, false);
 
     // touch joystick
@@ -312,7 +342,7 @@ export class UI {
     show(E.joyKnob, v.touch && v.joy.active);
     show(E.joyHint, v.touch && !v.joy.active && !v.reel && !v.cast && !this.d.store.state.tutorial.firstSale);
     if (v.joy.active) {
-      const rr = this.root.getBoundingClientRect();
+      const rr = this.rootRect;
       E.joyBase.style.left = `${v.joy.cx - rr.left}px`;
       E.joyBase.style.top = `${v.joy.cy - rr.top}px`;
       E.joyKnob.style.left = `${v.joy.px - rr.left}px`;
@@ -329,11 +359,12 @@ export class UI {
         this.labelEls.set(l.id, el);
         E.labels.append(el);
       }
-      el.className = `wlabel ${l.cls ?? ''}`;
+      const cls = `wlabel ${l.cls ?? ''}`;
+      if (el.className !== cls) el.className = cls;
       show(el, l.visible);
       if (l.visible) {
         setHtml(el, `${esc(l.text)}${l.sub ? `<small>${esc(l.sub)}</small>` : ''}`);
-        el.style.transform = `translate(${Math.round(l.x)}px, ${Math.round(l.y)}px) translate(-50%, -100%)`;
+        el.style.transform = `translate3d(${Math.round(l.x)}px, ${Math.round(l.y)}px, 0) translate(-50%, -100%)`;
       }
     }
     for (const [id, el] of this.labelEls) if (!seen.has(id)) show(el, false);
@@ -383,28 +414,49 @@ export class UI {
     this.hideCatch();
     const sp = SPECIES_BY_ID[c.speciesId];
     const mod = MODIFIERS_BY_ID[c.modifier];
+    const valueEl = h('b', { class: 'big-val' }, '¢ 0');
     const card = h(
       'div',
-      { class: 'catch-card interactive', role: 'dialog', 'aria-label': `Caught ${sp.name}` },
+      { class: `catch-card interactive r-${c.rarity}`, role: 'dialog', 'aria-label': `Caught ${sp.name}` },
+      h('div', { class: 'ribbon' }, h('span', {}, `${RARITY_GLYPH[c.rarity]} ${RARITY_LABEL[c.rarity]}`), c.newSpecies ? h('span', { class: 'badge-new' }, 'NEW') : null),
+      h('h2', {}, sp.name),
       h(
         'div',
         { class: 'tags' },
-        h('span', { class: 'tag' }, `${RARITY_GLYPH[c.rarity]} ${RARITY_LABEL[c.rarity]}`),
-        c.modifier !== 'normal' ? h('span', { class: 'tag', style: 'background:#ffd23f' }, `✦ ${mod.name}`) : null,
-        c.matchFactor > 1 ? h('span', { class: 'tag', style: 'background:#7ee081' }, 'Current match +10%') : null,
+        c.modifier !== 'normal' ? h('span', { class: 'tag mod' }, `✦ ${mod.name}`) : null,
+        c.matchFactor > 1 ? h('span', { class: 'tag match' }, '✓ Current match +10%') : null,
+        c.newRecord ? h('span', { class: 'tag record' }, '▲ Weight record') : null,
       ),
-      h('h2', {}, sp.name),
-      h('div', { class: 'stat' }, 'Weight', h('b', {}, `${c.weight.toFixed(1)} kg`)),
-      h('div', { class: 'stat' }, 'Est. sale value', h('b', {}, `¢ ${fmtCoins(c.value)}`)),
-      h('div', { class: 'stat' }, 'Bag', h('b', {}, `${c.bagUsed}/${c.bagCap}`)),
-      c.newSpecies ? h('div', { class: 'new' }, '★ New species! Added to your journal') : null,
-      c.newRecord ? h('div', { class: 'new' }, '▲ New weight record!') : null,
+      h(
+        'div',
+        { class: 'figures' },
+        h('div', {}, h('small', {}, 'Weight'), h('b', { class: 'big-val' }, `${c.weight.toFixed(1)} kg`)),
+        h('div', {}, h('small', {}, 'Sells for'), valueEl),
+      ),
+      h('div', { class: 'meta-row' }, h('span', {}, `Bag ${c.bagUsed}/${c.bagCap}`), h('span', {}, c.newSpecies ? 'Added to your journal' : `Record ${sp.minWeight}–${sp.maxWeight} kg`)),
       h('button', { class: 'btn cyan', onclick: () => this.d.onContinue() }, 'Continue'),
-      h('div', { class: 'note' }, 'Sell catches at the Fish Stand to earn coins.'),
+      h('div', { class: 'note' }, 'Coins are paid when you sell at the Fish Stand.'),
     );
     card.style.setProperty('--rc', RARITY_COLOR[c.rarity]);
     this.root.append(card);
     this.catchCard = card;
+    // count the value up so the payoff lands
+    const reduced = this.root.classList.contains('reduced-motion');
+    const t0 = performance.now();
+    const dur = reduced ? 0 : 650;
+    const tick = () => {
+      if (this.catchCard !== card) return;
+      const k = dur ? Math.min(1, (performance.now() - t0) / dur) : 1;
+      valueEl.textContent = `¢ ${fmtCoins(Math.round(c.value * (1 - Math.pow(1 - k, 3))))}`;
+      if (k < 1) requestAnimationFrame(tick);
+    };
+    tick();
+    if (c.rarity !== 'common' && c.rarity !== 'uncommon') {
+      const flash = h('div', { class: `rarity-flash r-${c.rarity}` });
+      flash.style.setProperty('--rc', RARITY_COLOR[c.rarity]);
+      this.root.append(flash);
+      setTimeout(() => flash.remove(), 1200);
+    }
   }
 
   hideCatch(): void {
@@ -510,13 +562,12 @@ export class UI {
     const sel = this.panelState.selected;
     for (const id of [...sel]) if (!s.state.inventory.some((c) => c.id === id && !c.favorite)) sel.delete(id);
     const inv = this.sortedInventory();
-    const sortSel = h('select', { 'aria-label': 'Sort by', onchange: (e: Event) => { this.panelState.sort = (e.target as HTMLSelectElement).value as never; this.renderPanel(); } });
+    const chips = h('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'Sort by' });
     for (const [v, l] of [['newest', 'Newest'], ['value', 'Value'], ['weight', 'Weight'], ['rarity', 'Rarity']]) {
-      const o = h('option', { value: v }, l);
-      if (v === this.panelState.sort) o.selected = true;
-      sortSel.append(o);
+      chips.append(h('button', { class: `chip${v === this.panelState.sort ? ' on' : ''}`, role: 'radio', 'aria-checked': String(v === this.panelState.sort), onclick: () => { this.panelState.sort = v as never; this.renderPanel(); } }, l));
     }
-    const toolbar = h('div', { class: 'toolbar' }, h('label', {}, 'Sort'), sortSel, h('span', { class: 'cmp' }, `${s.bagUsed}/${s.capacity} slots · ☆ protects a catch from Sell All`));
+    const slots = h('div', { class: 'slots' }, h('span', {}, `${s.bagUsed}/${s.capacity} slots`), h('span', { class: 'bagbar wide' }, h('i', { style: `width:${Math.min(100, (s.bagUsed / s.capacity) * 100)}%` })));
+    const toolbar = h('div', { class: 'toolbar' }, chips, slots, h('span', { class: 'cmp' }, '☆ protects a catch from Sell All'));
     const grid = h('div', { class: 'grid' });
     for (const c of inv) {
       const sp = SPECIES_BY_ID[c.speciesId];
@@ -524,7 +575,8 @@ export class UI {
       const card = h(
         'div',
         {
-          class: `card${sel.has(c.id) ? ' sel' : ''}`,
+          class: `card fish-card r-${c.rarity}${sel.has(c.id) ? ' sel' : ''}${c.favorite ? ' fav-on' : ''}`,
+          style: `--rc:${RARITY_COLOR[c.rarity]}`,
           role: atStand ? 'checkbox' : undefined,
           'aria-checked': atStand ? String(sel.has(c.id)) : undefined,
           tabindex: atStand ? 0 : undefined,
@@ -535,8 +587,7 @@ export class UI {
         h('img', { src: this.d.thumb(c.speciesId, c.modifier, false), alt: '' }),
         h('div', { class: 'name' }, sp.name),
         h('div', { class: 'rarity', style: `color:${RARITY_COLOR[c.rarity]}` }, `${RARITY_GLYPH[c.rarity]} ${RARITY_LABEL[c.rarity]}${c.modifier !== 'normal' ? ` · ${MODIFIERS_BY_ID[c.modifier].name}` : ''}`),
-        h('div', { class: 'meta' }, `${c.weight.toFixed(1)} kg${c.matchFactor > 1 ? ' · match +10%' : ''}`),
-        h('div', { class: 'val' }, `¢ ${fmtCoins(val)}`),
+        h('div', { class: 'card-foot' }, h('span', { class: 'meta' }, `${c.weight.toFixed(1)} kg${c.matchFactor > 1 ? ' · +10%' : ''}`), h('span', { class: 'val' }, `¢ ${fmtCoins(val)}`)),
       );
       grid.append(card);
     }
@@ -597,7 +648,9 @@ export class UI {
             art,
             h('h3', {}, rod.name),
             h('div', { class: 'cmp' }, rod.blurb),
-            h('div', { class: 'stats', html: `Max weight <b>${rod.maxWeight} kg</b><br>Reel speed <b>×${rod.reelSpeed.toFixed(2)}</b><br>Catch window <b>+${Math.round(rod.windowBonus * 100)}%</b>` }),
+            statBar('Max weight', `${rod.maxWeight} kg`, Math.log10(rod.maxWeight) / Math.log10(1200)),
+            statBar('Reel speed', `×${rod.reelSpeed.toFixed(2)}`, (rod.reelSpeed - 0.8) / 0.85),
+            statBar('Catch window', `+${Math.round(rod.windowBonus * 100)}%`, 0.15 + rod.windowBonus * 17),
             h('div', { class: 'cmp', html: cmp }),
             btn,
           ),
@@ -743,12 +796,15 @@ export class UI {
     if (tab === 'settings') {
       body.append(slider('Master volume', 'master'), slider('Music', 'music'), slider('Effects', 'sfx'));
       const q = h('select', { 'aria-label': 'Quality', onchange: (e: Event) => { s.updateSettings({ quality: (e.target as HTMLSelectElement).value as never }); this.d.onSettings(); } });
-      for (const v of ['low', 'medium', 'high']) {
-        const o = h('option', { value: v }, v[0].toUpperCase() + v.slice(1));
+      for (const v of ['auto', 'low', 'medium', 'high']) {
+        const o = h('option', { value: v }, v === 'auto' ? 'Auto (recommended)' : v[0].toUpperCase() + v.slice(1));
         if (v === st.quality) o.selected = true;
         q.append(o);
       }
-      body.append(h('div', { class: 'row' }, h('span', {}, 'Quality', h('small', {}, 'Lower if the game feels slow')), q));
+      body.append(h('div', { class: 'row' }, h('span', {}, 'Graphics quality', h('small', {}, 'Auto lowers resolution and detail if frames drop. Antialiasing changes apply after a reload.')), q));
+      body.append(
+        h('div', { class: 'row' }, h('span', {}, 'Show FPS', h('small', {}, 'Frame rate and current quality level')), h('button', { class: `btn small toggle${st.showFps ? ' on' : ''}`, 'aria-pressed': String(st.showFps), onclick: () => { s.updateSettings({ showFps: !st.showFps }); this.d.onSettings(); } }, st.showFps ? 'On' : 'Off')),
+      );
       body.append(toggle('Reduced motion', 'Softer camera and reveal animations', 'reducedMotion'));
       body.append(toggle('Assist mode', 'Wider catch window, longer hook time, more slack. Same rewards.', 'assist'));
       body.append(
@@ -859,6 +915,15 @@ export class UI {
   poolName(id: PoolId): string {
     return POOLS_BY_ID[id].name;
   }
+}
+
+function statBar(label: string, value: string, frac: number): HTMLElement {
+  return h(
+    'div',
+    { class: 'statbar' },
+    h('div', { class: 'statbar-top' }, h('span', {}, label), h('b', {}, value)),
+    h('div', { class: 'statbar-track' }, h('i', { style: `width:${Math.round(Math.max(0.05, Math.min(1, frac)) * 100)}%` })),
+  );
 }
 
 function diff(a: number, b: number, unit: string, digits = 0): string {
