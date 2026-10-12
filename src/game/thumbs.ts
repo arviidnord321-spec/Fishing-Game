@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { ModifierId } from '../data/types';
 import { buildFish } from './fishModels';
-import { buildPet } from './petModels';
+import { buildPet, disposeModel } from './petModels';
 
 const FISH_CAM = { pos: new THREE.Vector3(0.35, 0.35, 2.6), look: new THREE.Vector3(0, 0, 0) };
 const PET_CAM = { pos: new THREE.Vector3(0.15, 0.55, 1.75), look: new THREE.Vector3(0, 0.33, 0) };
@@ -44,10 +44,10 @@ export class ThumbnailRenderer {
       const g = buildPet(petId);
       g.rotation.y = 0.45;
       return g;
-    }, PET_CAM);
+    }, PET_CAM, disposeModel);
   }
 
-  private render(key: string, silhouette: boolean, make: () => THREE.Object3D, cam: { pos: THREE.Vector3; look: THREE.Vector3 }): string {
+  private render(key: string, silhouette: boolean, make: () => THREE.Object3D, cam: { pos: THREE.Vector3; look: THREE.Vector3 }, release?: (o: THREE.Object3D) => void): string {
     const hit = this.cache.get(key);
     if (hit !== undefined) return hit;
     let url = '';
@@ -67,6 +67,7 @@ export class ThumbnailRenderer {
       this.renderer.setRenderTarget(prevTarget);
       this.renderer.setClearAlpha(prevClear);
       this.scene.remove(obj);
+      release?.(obj);
       const g = this.canvas.getContext('2d')!;
       const img = g.createImageData(W, H);
       // flip vertically: GL rows start at the bottom

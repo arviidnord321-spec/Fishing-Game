@@ -123,7 +123,8 @@ All of these use **earned coins only**. Nothing can be bought with real money.
   opens. There are 18 original pets, and each boosts catch value, luck, reel speed or XP.
   Duplicates level a pet up (max Lv 5, +25% of its base bonus per level). A duplicate of a
   maxed pet refunds 40% of the egg price. Pets follow you around the island, flying or
-  hopping, and epic and legendary pets sparkle. You start with 1 pet slot; slots 2 and 3 cost
+  hopping, and epic and legendary pets sparkle. Each pet is its own animated model built in code
+  (`src/game/petModels.ts`); dev and QA builds have a pet gallery at `?gallery`. You start with 1 pet slot; slots 2 and 3 cost
   ¢1,500 and ¢8,000.
 - **Boosts** (Shop → Boosts):
   - Coin Rush: ×2 catch value.

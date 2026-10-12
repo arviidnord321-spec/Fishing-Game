@@ -1,6 +1,89 @@
 # QA report
 
-## Round 3: pets, eggs, shop, levels, daily rewards, quests, popups (latest)
+## Round 4: pet redesign from the reference sheet (latest)
+
+All 18 pets were rebuilt from the supplied redesign sheet (`src/game/petKit.ts`, `src/game/petModels.ts`).
+The ids, names, rarities, bonuses, eggs and save format are unchanged.
+
+**Models**
+- Each pet has its own anatomy, built from ellipsoids, tapered tubes, extruded plates and cones:
+  - quadruped dogs, foxes and dragons with diagonal leg pairs;
+  - a crab with jointed pincers and six legs;
+  - a jelly bell with a scalloped rim and two tentacle sets;
+  - a flat manta with wide fins;
+  - an upright otter with a paddle tail;
+  - an owl, a phoenix and a seraph with wings, and a whale with a fluke.
+- Animated parts (body, head, eyes, ears, tail, wings, leg pairs, claws, tentacles, arms, flame,
+  halo) are each baked into one vertex-coloured mesh with shared materials. There are no per-pet
+  lights, textures or particles.
+
+**Budget** (`npx vite-node scripts/pet-tris.ts`)
+- 2,028–4,058 triangles per pet, averaging about 3,100.
+- 5–9 draw calls per pet.
+- The heaviest are the three dragons, at about 3.7–4.1k.
+
+**Animation**
+- Breathing, blinking, head sway and ear twitches on every pet.
+- Tails swish; the whale's tail moves up and down.
+- Wings: flyers flap, the ray's fins undulate, the whale's flippers paddle slowly, and grounded
+  dragons and the owl give an occasional flutter.
+- Diagonal leg pairs step from the pet's own moved distance, with a hop bounce when moving.
+- The crab's pincers open and close, and its legs shuffle.
+- The jelly bell pulses, and its two tentacle sets sway out of phase.
+- Halos bob without spinning.
+- Each pet gets a random phase offset.
+
+**Dev gallery** (dev and `--mode qa` builds only; not in the release bundle):
+- Open with `?gallery`.
+- All 18 pets with name and triangle labels.
+- Drag to orbit, wheel to zoom, click a name to focus.
+- Front, 3/4, side, back, top and gameplay-distance presets, plus solo, idle/walk and pause.
+- Live draw-call and triangle stats.
+
+**Verification**
+- New `tests/petModels.test.ts` (21 tests) checks:
+  - the 18 ids are unchanged and each has its own model;
+  - triangle (≤4,200) and mesh (≤10) budgets;
+  - the rig parts exist;
+  - 300 frames of walk and idle animation stay finite, and the body returns to rest;
+  - baked geometry is disposed.
+- **85/85 unit tests pass.**
+- Contact sheets from front, 3/4, side and back, plus walk and animation time-strips, were
+  compared against the sheet over several passes.
+- Fixes found that way:
+  - Wings and fins were attached one body-height too low.
+  - Noses sat above the eyes.
+  - Ray fins z-fought.
+  - Legs were too long and thin.
+  - Moth and phoenix wings were too small.
+  - Faceted wing outlines.
+  - Thumbnail pets and halo geometry were never disposed.
+- `scripts/qa-pets.mjs` passes (hatch reveal, collection cards, slots, followers in the world),
+  with no console errors.
+- `scripts/qa-play.mjs` passes the 1280×720 full loop with no errors.
+
+**Performance**, measured with `scripts/pet-perf.mjs`: the QA build at 1280×720, start view, 3 runs
+each, with the three heaviest pets equipped. This is headless Chromium on **CPU SwiftShader**, so
+the absolute FPS says nothing about real GPUs.
+
+| | 0 pets | 3 pets |
+| --- | --- | --- |
+| Old pet models | 11.6–12.6 fps · 142 calls · 31.7k tris | 10.8–10.9 fps · 166 calls · 38.6k tris |
+| New pet models | 10.9–11.7 fps · 142 calls · 31.7k tris | 10.9–12.1 fps · 171 calls · 43.5k tris |
+
+FPS differences are within run-to-run noise. Three new pets cost +5 draw calls and +4.9k
+triangles more than three old ones.
+
+**Limitations**
+- The pets are modelled from simple primitives with vertex colours. They match the sheet's
+  shapes, colours and features, not its painted shading or fur detail.
+- At full running speed, pets bound and hop. Leg phase follows the distance moved, but short legs
+  cannot plant for a whole stride, so a little foot slip remains at sprint speed.
+- Not checked on real devices.
+
+---
+
+## Round 3: pets, eggs, shop, levels, daily rewards, quests, popups
 
 Unit tests: **64/64 pass**. 14 are new in `tests/meta.test.ts`:
 - **Eggs:** published odds hold within ±1.5 points over 40,000 rolls per egg; pity guarantees

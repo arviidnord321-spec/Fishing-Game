@@ -9,6 +9,7 @@ written for this project:
 | --- | --- | --- |
 | Island, pools, props, buildings, trees, rocks | Procedural Three.js primitives (`src/game/world.ts`) | Project-original |
 | Angler and villager characters | Procedural primitives (`src/game/character.ts`) | Project-original |
+| 18 pets (models and animation) | Procedural primitives (`src/game/petKit.ts`, `src/game/petModels.ts`), modelled after the owner-supplied pet redesign sheet. No image data from the sheet is shipped. | Project-original |
 | 18 fish species and modifier looks | Procedural primitives (`src/game/fishModels.ts`) | Project-original |
 | Water, sky, particle shaders | GLSL written for this project (`src/game/water.ts`, `src/game/effects.ts`) | Project-original |
 | Sign textures, contact shadows, fish icons | Drawn at runtime with Canvas 2D or rendered from the procedural models | Project-original |

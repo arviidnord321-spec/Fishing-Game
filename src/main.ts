@@ -24,6 +24,10 @@ async function boot(): Promise<void> {
     bootError('3D graphics unavailable', 'Rift Fishing needs WebGL. Please enable hardware acceleration in your browser settings or try another browser.');
     return;
   }
+  if ((import.meta.env.DEV || import.meta.env.MODE === 'qa') && new URLSearchParams(location.search).has('gallery')) {
+    (await import('./game/gallery')).startGallery();
+    return;
+  }
   let platform = createPlatform(__PLATFORM__);
   const init = await platform.init();
   if (!init.ok) {
