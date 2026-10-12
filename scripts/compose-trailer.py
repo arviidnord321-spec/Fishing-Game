@@ -26,14 +26,14 @@ for ci, clip in enumerate(plan):
         total += (b - a) / sp
     n = len(clip['parts'])
     chains += parts
-    chains.append(''.join(f"[c{ci}p{pi}]" for pi in range(n)) + f"concat=n={n}:v=1:a=0,scale={W}:{H},setsar=1,format=yuv420p[v{ci}]")
+    chains.append(''.join(f"[c{ci}p{pi}]" for pi in range(n)) + f"concat=n={n}:v=1:a=0,scale={W}:{H},setsar=1,format=yuv420p,settb=1/{FPS}[v{ci}]")
     durs.append(total)
 
 oi = len(plan)
 inputs += ['-loop', '1', '-framerate', str(FPS), '-t', str(OUTRO + XF), '-i', outro]
 frames_out = int((OUTRO + XF) * FPS)
 chains.append(
-    f"[{oi}:v]scale={W * 2}:{H * 2},zoompan=z='1+0.06*on/{frames_out}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS},setsar=1,format=yuv420p[v{oi}]"
+    f"[{oi}:v]scale={W * 2}:{H * 2},zoompan=z='1+0.06*on/{frames_out}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS},setsar=1,format=yuv420p,settb=1/{FPS}[v{oi}]"
 )
 durs.append(OUTRO + XF)
 
