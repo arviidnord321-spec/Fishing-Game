@@ -264,6 +264,10 @@ export class GameApp {
 
   // ------------------------------------------------------------------ setup
   private wireEvents(): void {
+    this.input.onShiftLock = (on, failed) => {
+      this.ui.setShiftLock(on);
+      if (failed) this.ui.toast('Shift lock is not available here — hold the right mouse button to look around.', 'bad', 3200);
+    };
     this.fishing.on((e) => this.onFishEvent(e));
     this.store.subscribe((e) => {
       if (e.type === 'changed') this.syncWorldFromState();
@@ -856,6 +860,7 @@ export class GameApp {
   private onPanelChange(p: PanelName | null): void {
     this.input.clear();
     this.input.flushEdges();
+    if (p) this.input.releaseShiftLock();
     if (p) this.pause.add('USER_MENU');
     else {
       this.pause.remove('USER_MENU');

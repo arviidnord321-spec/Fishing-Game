@@ -885,3 +885,16 @@ input[type='range'] { width: min(220px, 40vw); accent-color: var(--yellow-2); he
 .travel-ico { width: 96px; height: 96px; margin: 0 auto 10px; animation: spin 2.4s linear infinite; }
 .travel-title { font: 700 40px var(--font); text-shadow: var(--ts); }
 .travel-sub { font: 600 18px var(--font); text-shadow: var(--ts-sm); margin-top: 6px; }
+
+/* ---- shift lock ---- */
+.crosshair {
+  position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--ink); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5); pointer-events: none; z-index: 2;
+}
+.lock-chip {
+  position: absolute; left: 50%; bottom: calc(14px + var(--sab)); transform: translateX(-50%); padding: 4px 14px 5px; border-radius: 12px; text-align: center;
+  font: 700 15px/1.1 var(--font); color: #fff; text-shadow: var(--ts-sm); background: linear-gradient(180deg, var(--blue-1), var(--blue-2)); border: 3px solid var(--ink);
+  box-shadow: 0 3px 0 var(--ink); pointer-events: none;
+}
+.lock-chip small { display: block; font: 600 11px var(--font); }
+.shift-locked .reel ~ .lock-chip, .fishing .lock-chip { bottom: auto; top: calc(64px + var(--sat)); }

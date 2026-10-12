@@ -289,11 +289,15 @@ export class UI {
     E.joyBase = h('div', { class: 'joy-base' });
     E.joyKnob = h('div', { class: 'joy-knob' });
     E.joyHint = h('div', { class: 'joy-hint' }, 'Drag left side to walk · right side to look');
+    E.crosshair = h('div', { class: 'crosshair', 'aria-hidden': 'true' });
+    E.lockChip = h('div', { class: 'lock-chip', role: 'status' }, 'SHIFT LOCK', h('small', {}, 'Shift or Esc to release'));
+    show(E.crosshair, false);
+    show(E.lockChip, false);
     E.debugText = h('div');
     E.debug = h('div', { class: 'debug' }, E.debugText);
 
     this.root.append(this.popupsEl, this.floatsEl);
-    this.root.append(E.vignette, E.labels, topLeft, topCenter, topRight, bottomLeft, bottomRight, E.cast, E.reel, this.toastsEl, E.fishOn, E.hint, E.joyBase, E.joyKnob, E.joyHint, E.debug);
+    this.root.append(E.crosshair, E.lockChip, E.vignette, E.labels, topLeft, topCenter, topRight, bottomLeft, bottomRight, E.cast, E.reel, this.toastsEl, E.fishOn, E.hint, E.joyBase, E.joyKnob, E.joyHint, E.debug);
     if (d.debugActions) {
       const box = h('div');
       for (const [k, fn] of Object.entries(d.debugActions)) box.append(h('button', { onclick: fn }, k));
@@ -345,7 +349,7 @@ export class UI {
     show(E.interact, !!v.interact);
     if (v.interact) setText(E.interact, v.interact);
     this.updateLures(v.lures);
-    setText(E.controlsHint, v.touch ? '' : `${keyName(this.d.store.state.settings.bindings.up)}${keyName(this.d.store.state.settings.bindings.left)}${keyName(this.d.store.state.settings.bindings.down)}${keyName(this.d.store.state.settings.bindings.right)} move · Space cast · Right-drag look · E interact`);
+    setText(E.controlsHint, v.touch ? '' : `${keyName(this.d.store.state.settings.bindings.up)}${keyName(this.d.store.state.settings.bindings.left)}${keyName(this.d.store.state.settings.bindings.down)}${keyName(this.d.store.state.settings.bindings.right)} move · Space cast · Shift lock look · E interact`);
     show(E.controlsHint, !v.touch && !this.d.store.state.tutorial.firstPurchase);
 
     // cast meter
@@ -1097,7 +1101,8 @@ export class UI {
       }
       body.append(
         h('div', { class: 'row' }, h('span', {}, 'Restore defaults'), h('button', { class: 'btn small', onclick: () => { s.updateSettings({ bindings: { ...DEFAULT_BINDINGS } }); this.d.onSettings(); } }, 'Reset keys')),
-        h('ul', { class: 'help-list' }, h('li', {}, 'Arrow keys always move too. Enter also casts.'), h('li', {}, 'Mouse: left-click casts and reels, right-drag rotates the camera, wheel zooms.'), h('li', {}, 'Touch: left side joystick, right side drag to look, big button to cast and reel.')),
+        h('ul', { class: 'help-list' }, h('li', {}, 'Arrow keys always move too. Enter also casts.'), h('li', {}, 'Mouse: left-click casts and reels, right-drag rotates the camera, wheel zooms.'),
+        h('li', {}, 'Shift lock: press Shift to capture the mouse and look around just by moving it. Press Shift or Esc to release.'), h('li', {}, 'Touch: left side joystick, right side drag to look, big button to cast and reel.')),
       );
     } else if (tab === 'wardrobe') {
       body.append(this.styleBody());
@@ -1138,6 +1143,13 @@ export class UI {
     this.confirmEl = box;
     this.root.append(box);
     (box.querySelector('.btn') as HTMLElement).focus();
+  }
+
+  /** Shift lock on: show a crosshair and a small reminder of how to release it. */
+  setShiftLock(on: boolean): void {
+    show(this.el.crosshair, on);
+    show(this.el.lockChip, on);
+    this.root.classList.toggle('shift-locked', on);
   }
 
   setReducedMotion(on: boolean): void {

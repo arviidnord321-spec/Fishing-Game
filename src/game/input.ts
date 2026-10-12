@@ -41,6 +41,35 @@ export class InputManager {
   private pinchDist = 0;
   private cleanup: (() => void)[] = [];
   isTouch = false;
+  /** Called when shift lock turns on/off, or when the browser refuses it. */
+  onShiftLock: (locked: boolean, failed?: boolean) => void = () => {};
+
+  /** Roblox-style shift lock: the mouse is captured and moving it turns the camera. */
+  get shiftLocked(): boolean {
+    return typeof document !== 'undefined' && document.pointerLockElement === this.canvas;
+  }
+
+  toggleShiftLock(): void {
+    if (this.shiftLocked) {
+      document.exitPointerLock?.();
+      return;
+    }
+    if (!this.canvas.requestPointerLock) {
+      this.onShiftLock(false, true);
+      return;
+    }
+    try {
+      const r = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
+      r?.catch?.(() => this.onShiftLock(false, true));
+    } catch {
+      this.onShiftLock(false, true);
+    }
+  }
+
+  /** Release the mouse (menus need a visible cursor). */
+  releaseShiftLock(): void {
+    if (this.shiftLocked) document.exitPointerLock?.();
+  }
 
   constructor(private canvas: HTMLCanvasElement) {
     this.isTouch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -51,6 +80,8 @@ export class InputManager {
     on(window, 'keydown', (e: KeyboardEvent) => this.onKey(e, true));
     on(window, 'keyup', (e: KeyboardEvent) => this.onKey(e, false));
     on(window, 'blur', () => this.clear());
+    on(document, 'pointerlockchange', () => this.onShiftLock(this.shiftLocked));
+    on(document, 'pointerlockerror', () => this.onShiftLock(false, true));
     on(document, 'visibilitychange', () => {
       if (document.hidden) this.clear();
     });
@@ -84,6 +115,11 @@ export class InputManager {
     const target = e.target as HTMLElement | null;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && down && !e.repeat && !this.isTouch) {
+      e.preventDefault();
+      this.toggleShiftLock();
+      return;
+    }
     const act = this.actionForCode(e.code);
     if (!act) return;
     if (act === 'action' && target?.tagName === 'BUTTON' && !target.dataset.gameAction) return;
@@ -153,6 +189,11 @@ export class InputManager {
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       this.zoomDelta += (this.pinchDist - d) * 0.02;
       this.pinchDist = d;
+      return;
+    }
+    if (this.shiftLocked && e.pointerType === 'mouse') {
+      this.orbitDX += e.movementX;
+      this.orbitDY += e.movementY;
       return;
     }
     if (e.pointerId === this.joyPointer) {
