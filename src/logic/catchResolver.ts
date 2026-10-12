@@ -14,6 +14,8 @@ export interface CatchContext {
   eventOpen: boolean;
   /** Permanent pools the player has unlocked; feeds the rift's species list. */
   unlockedPools: PermanentPoolId[];
+  /** Pets and boosts (default 1). */
+  luckMultiplier?: number;
   /** Forces a gentle common species for the guided first catch. */
   tutorial?: boolean;
 }
@@ -98,7 +100,7 @@ export function resolveCatch(ctx: CatchContext, rng: Rng): CatchRoll | null {
     const commons = eligible.filter((s) => s.rarity === 'common');
     species = commons.length ? commons[rng.int(commons.length)] : eligible[0];
   } else {
-    const probs = tierProbabilities(eligible, effectiveLuck(ctx.castLuck, ctx.poolGrowthLevel, ctx.pool));
+    const probs = tierProbabilities(eligible, effectiveLuck(ctx.castLuck, ctx.poolGrowthLevel, ctx.pool) * (ctx.luckMultiplier ?? 1));
     const tiers = RARITIES.filter((r) => probs[r] > 0);
     const tier = pickWeighted(tiers, (r) => probs[r], rng);
     const inTier = eligible.filter((s) => s.rarity === tier);
@@ -129,6 +131,7 @@ export function saleValue(
   modifier: ModifierId,
   sellValueLevel: number,
   matchFactor: number,
+  bonus = 1,
 ): number {
   const s = SPECIES_BY_ID[speciesId];
   const m = MODIFIERS_BY_ID[modifier];
@@ -138,6 +141,7 @@ export function saleValue(
       Math.sqrt(weight / s.minWeight) *
       m.valueMultiplier *
       (1 + BALANCE.sellValuePerLevel * sellValueLevel) *
-      matchFactor,
+      matchFactor *
+      bonus,
   );
 }

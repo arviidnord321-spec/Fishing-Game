@@ -1,8 +1,10 @@
 import { BAG_CAPACITY, BOBBERS, MODIFIERS_BY_ID, RODS, RODS_BY_ID, UPGRADES_BY_ID } from '../data/balance';
 import { SPECIES_BY_ID } from '../data/species';
+import { BOOSTS, EGGS, PET_MAX_LEVEL, PET_SLOT_COSTS, PETS_BY_ID, type BoostId, type EggId } from '../data/pets';
 import type { CatchRecord, LureId, ModifierId, PoolId, UpgradeTrack } from '../data/types';
+import type { DailyState, Quest, QuestKind } from './meta';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export interface JournalEntry {
   count: number;
@@ -52,6 +54,24 @@ export interface SaveData {
   nextOrdinal: number;
   announcedPools: PoolId[];
   totalCoinsEarned: number;
+  // ---- v2: meta progression ----
+  xp: number;
+  level: number;
+  tickets: Record<'meadow' | 'reef', number>;
+  /** Owned pets → level (1–5). */
+  pets: Record<string, number>;
+  equippedPets: string[];
+  petSlots: number;
+  /** Spins since the last rare-or-better, per egg (pity counter). */
+  eggPity: Record<EggId, number>;
+  eggsOpened: number;
+  daily: DailyState;
+  quests: { day: string; list: Quest[] };
+  /** Boost expiry, in active-play seconds (compared with `playtime`). */
+  boosts: Record<BoostId, number>;
+  streak: number;
+  bestStreak: number;
+  totalCaught: number;
 }
 
 export const DEFAULT_BINDINGS: Record<string, string> = {
@@ -93,6 +113,20 @@ export function newSave(): SaveData {
     nextOrdinal: 1,
     announcedPools: ['meadow'],
     totalCoinsEarned: 0,
+    xp: 0,
+    level: 1,
+    tickets: { meadow: 0, reef: 0 },
+    pets: {},
+    equippedPets: [],
+    petSlots: 1,
+    eggPity: { meadow: 0, reef: 0, star: 0 },
+    eggsOpened: 0,
+    daily: { lastClaim: '', streak: 0 },
+    quests: { day: '', list: [] },
+    boosts: { coinRush: 0, luckyCharm: 0, quickReel: 0 },
+    streak: 0,
+    bestStreak: 0,
+    totalCaught: 0,
   };
 }
 
@@ -114,6 +148,11 @@ function migrate(raw: Record<string, unknown>): Record<string, unknown> {
   if (v < 1) {
     // Pre-release prototype saves had no version field; treat them as v1 shapes.
     raw.version = 1;
+  }
+  if ((raw.version as number) < 2) {
+    // v1 → v2: meta progression fields start at their defaults (filled in by parseSave);
+    // existing catches had no bonus factor.
+    raw.version = 2;
   }
   return raw;
 }
@@ -181,6 +220,7 @@ export function parseSave(rawText: string | null): LoadOutcome {
         weight: Math.round(w * 10) / 10,
         modifier: mod,
         matchFactor: it.matchFactor === 1.1 ? 1.1 : 1,
+        bonus: num(it.bonus, 1, 20, 1),
         ordinal: finiteNonNegInt(it.ordinal) ?? 0,
         pool: (typeof it.pool === 'string' ? it.pool : sp.pool) as PoolId,
         favorite: it.favorite === true,
@@ -249,6 +289,61 @@ export function parseSave(rawText: string | null): LoadOutcome {
     if (!d.announcedPools.includes('meadow')) d.announcedPools.unshift('meadow');
   }
   d.totalCoinsEarned = finiteNonNegInt(raw.totalCoinsEarned) ?? 0;
+
+  // ---- v2 fields ----
+  d.xp = finiteNonNegInt(raw.xp) ?? 0;
+  d.level = Math.max(1, Math.min(999, finiteNonNegInt(raw.level) ?? 1));
+  if (isObj(raw.tickets)) {
+    d.tickets.meadow = Math.min(999, finiteNonNegInt(raw.tickets.meadow) ?? 0);
+    d.tickets.reef = Math.min(999, finiteNonNegInt(raw.tickets.reef) ?? 0);
+  }
+  if (isObj(raw.pets)) {
+    for (const [id, lvl] of Object.entries(raw.pets)) {
+      const l = finiteNonNegInt(lvl);
+      if (PETS_BY_ID[id] && l !== null && l >= 1) d.pets[id] = Math.min(PET_MAX_LEVEL, l);
+      else repairs.push('pet');
+    }
+  }
+  d.petSlots = Math.max(1, Math.min(1 + PET_SLOT_COSTS.length, finiteNonNegInt(raw.petSlots) ?? 1));
+  if (Array.isArray(raw.equippedPets)) {
+    d.equippedPets = Array.from(new Set(raw.equippedPets.filter((p): p is string => typeof p === 'string' && !!d.pets[p]))).slice(0, d.petSlots);
+  }
+  if (isObj(raw.eggPity)) for (const e of EGGS) d.eggPity[e.id] = Math.min(1000, finiteNonNegInt(raw.eggPity[e.id]) ?? 0);
+  d.eggsOpened = finiteNonNegInt(raw.eggsOpened) ?? 0;
+  if (isObj(raw.daily) && typeof raw.daily.lastClaim === 'string' && /^\d{4}-\d{2}-\d{2}$|^$/.test(raw.daily.lastClaim)) {
+    d.daily = { lastClaim: raw.daily.lastClaim, streak: finiteNonNegInt(raw.daily.streak) ?? 0 };
+  }
+  if (isObj(raw.quests) && typeof raw.quests.day === 'string' && Array.isArray(raw.quests.list)) {
+    const kinds: QuestKind[] = ['catch', 'catchRare', 'sell', 'perfect', 'hatch', 'streak'];
+    const list: Quest[] = [];
+    for (const q of raw.quests.list) {
+      if (!isObj(q) || typeof q.id !== 'string' || !kinds.includes(q.kind as QuestKind) || !isObj(q.reward)) continue;
+      list.push({
+        id: q.id,
+        kind: q.kind as QuestKind,
+        target: Math.max(1, finiteNonNegInt(q.target) ?? 1),
+        progress: finiteNonNegInt(q.progress) ?? 0,
+        claimed: q.claimed === true,
+        reward: (() => {
+          const r: Quest['reward'] = {};
+          const c = finiteNonNegInt(q.reward.coins);
+          const x = finiteNonNegInt(q.reward.xp);
+          const mt = finiteNonNegInt(q.reward.meadowTickets);
+          const rt = finiteNonNegInt(q.reward.reefTickets);
+          if (c) r.coins = c;
+          if (x) r.xp = x;
+          if (mt) r.meadowTickets = Math.min(5, mt);
+          if (rt) r.reefTickets = Math.min(5, rt);
+          return r;
+        })(),
+      });
+    }
+    d.quests = { day: raw.quests.day, list: list.slice(0, 3) };
+  }
+  if (isObj(raw.boosts)) for (const b of BOOSTS) d.boosts[b.id] = num(raw.boosts[b.id], 0, 1e9, 0);
+  d.streak = finiteNonNegInt(raw.streak) ?? 0;
+  d.bestStreak = finiteNonNegInt(raw.bestStreak) ?? 0;
+  d.totalCaught = finiteNonNegInt(raw.totalCaught) ?? 0;
 
   return { kind: 'ok', data: d, repairs };
 }

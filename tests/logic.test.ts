@@ -229,7 +229,7 @@ describe('fishing state machine', () => {
   it('a full bag prevents casting', () => {
     const store = new GameStore();
     store.state.inventory = Array.from({ length: 8 }, (_, i) => ({
-      id: `x${i}`, speciesId: 'pebblefin', rarity: 'common' as const, weight: 1, modifier: 'normal' as const, matchFactor: 1, ordinal: i, pool: 'meadow' as const, favorite: false,
+      id: `x${i}`, speciesId: 'pebblefin', rarity: 'common' as const, weight: 1, modifier: 'normal' as const, matchFactor: 1, bonus: 1, ordinal: i, pool: 'meadow' as const, favorite: false,
     }));
     const fc = new FishingController(store, createRng(1));
     let blocked = '';
@@ -338,13 +338,14 @@ describe('store transactions', () => {
     s.toggleFavorite('b');
     const ids = s.unlockedIds();
     const quote = s.quoteSale(ids);
+    const before = s.state.coins; // includes any level-up reward from the catches
     const r = s.sell(ids);
     expect(r.coins).toBe(quote.coins);
-    expect(s.state.coins).toBe(quote.coins);
+    expect(s.state.coins - before).toBe(quote.coins);
     expect(s.state.inventory.map((c) => c.id)).toEqual(['b']);
     const again = s.sell(ids);
     expect(again.ok).toBe(false);
-    expect(s.state.coins).toBe(quote.coins);
+    expect(s.state.coins - before).toBe(quote.coins);
     expect(s.state.journal.pebblefin.count).toBe(3);
   });
 
@@ -417,7 +418,7 @@ describe('saves', () => {
 
   it('raises capacity so no restored catch is lost', () => {
     const d = newSave();
-    d.inventory = Array.from({ length: 10 }, (_, i) => ({ id: `i${i}`, speciesId: 'pebblefin', rarity: 'common' as const, weight: 1, modifier: 'normal' as const, matchFactor: 1, ordinal: i, pool: 'meadow' as const, favorite: false }));
+    d.inventory = Array.from({ length: 10 }, (_, i) => ({ id: `i${i}`, speciesId: 'pebblefin', rarity: 'common' as const, weight: 1, modifier: 'normal' as const, matchFactor: 1, bonus: 1, ordinal: i, pool: 'meadow' as const, favorite: false }));
     const out = parseSave(serializeSave(d));
     expect(out.kind === 'ok' && out.data.inventory.length).toBe(10);
     expect(out.kind === 'ok' && out.data.upgrades.bag).toBe(1);

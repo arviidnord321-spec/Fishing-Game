@@ -42,7 +42,7 @@ export type FishEvent =
   | { type: 'bite' }
   | { type: 'hint'; text: string }
   | { type: 'hooked' }
-  | { type: 'caught'; record: CatchRecord | Omit<CatchRecord, 'ordinal' | 'favorite'>; newSpecies: boolean; newRecord: boolean; value: number }
+  | { type: 'caught'; record: Omit<CatchRecord, 'ordinal' | 'favorite'>; newSpecies: boolean; newRecord: boolean; value: number; xp: number }
   | { type: 'escaped'; reason: 'missed' | 'slack' | 'time' }
   | { type: 'cancelled'; reason: string }
   | { type: 'revealDone' };
@@ -67,7 +67,7 @@ export class FishingController {
   biteWindow = 0;
   tutorial = false;
   revealLength = BALANCE.reveal.normal;
-  lastCatch: { record: Omit<CatchRecord, 'ordinal' | 'favorite'>; newSpecies: boolean; newRecord: boolean; value: number } | null = null;
+  lastCatch: { record: Omit<CatchRecord, 'ordinal' | 'favorite'>; newSpecies: boolean; newRecord: boolean; value: number; xp: number } | null = null;
   private nibbles = 0;
   private hasReservation = false;
   private listeners = new Set<(e: FishEvent) => void>();
@@ -106,6 +106,7 @@ export class FishingController {
       isNight: ctx.isNight,
       eventOpen: pool === 'rift' && ctx.event.phase === 'open',
       unlockedPools: this.store.unlockedPermanentPools(),
+      luckMultiplier: this.store.luckMultiplier(),
       tutorial: !this.store.state.tutorial.firstCatch,
     };
   }
@@ -239,6 +240,7 @@ export class FishingController {
   private releaseCast(ctx: FishContext): void {
     const pool = this.pool!;
     this.cast = castQuality(castMarker(this.t));
+    if (this.cast.perfect) this.store.recordPerfectCast();
     this.tutorial = !this.store.state.tutorial.firstCatch;
     const cctx = this.catchContext(pool, ctx, this.cast.luck);
     this.roll = resolveCatch(cctx, this.rng);
@@ -262,7 +264,7 @@ export class FishingController {
     this.reel = new ReelSim({
       rarity: sp.rarity,
       fightSeconds: sp.fightSeconds,
-      reelSpeed: rod.reelSpeed,
+      reelSpeed: rod.reelSpeed * this.store.reelMultiplier(),
       windowBonus: rod.windowBonus,
       assist: this.store.state.settings.assist,
       tutorial: this.tutorial,
@@ -286,18 +288,20 @@ export class FishingController {
     };
     const flags = this.store.commitCatch(record);
     this.hasReservation = false;
-    const res = flags ?? { newSpecies: false, newRecord: false };
+    const res = flags ?? { newSpecies: false, newRecord: false, xp: 0, bonus: 1 };
     const stored = this.store.state.inventory.find((c) => c.id === record.id);
     const value = stored ? this.store.valueOf(stored) : 0;
-    this.lastCatch = { record, ...res, value };
+    const full = { ...record, bonus: res.bonus };
+    this.lastCatch = { record: full, newSpecies: res.newSpecies, newRecord: res.newRecord, value, xp: res.xp };
     this.revealLength = res.newSpecies || res.newRecord ? BALANCE.reveal.special : BALANCE.reveal.normal;
     this.reel = null;
     this.go('Reveal');
-    this.emit({ type: 'caught', record, newSpecies: res.newSpecies, newRecord: res.newRecord, value });
+    this.emit({ type: 'caught', record: full, newSpecies: res.newSpecies, newRecord: res.newRecord, value, xp: res.xp });
   }
 
   private escape(reason: 'missed' | 'slack' | 'time'): void {
     this.release();
+    this.store.breakStreak();
     this.reel = null;
     this.roll = null;
     this.go('Escape');

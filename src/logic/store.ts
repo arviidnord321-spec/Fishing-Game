@@ -1,14 +1,31 @@
 import { BAG_CAPACITY, BOBBERS, RODS, RODS_BY_ID, UPGRADES_BY_ID } from '../data/balance';
 import { SPECIES } from '../data/species';
 import type { CatchRecord, LureId, PermanentPoolId, PoolId, RodDef, UpgradeTrack } from '../data/types';
+import { BOOSTS_BY_ID, EGGS_BY_ID, PET_MAX_LEVEL, PET_SLOT_COSTS, PETS, PETS_BY_ID, PITY, DUPLICATE_REFUND, petBonusAt, type BoostId, type EggId, type PetBonus } from '../data/pets';
 import { saleValue } from './catchResolver';
+import { dailyReward, dailyStatus, generateQuests, isRarePlus, levelReward, rollEgg, streakFactor, xpForCatch, xpToNext, type Quest, type QuestKind, type Reward } from './meta';
+import type { Rng } from './rng';
 import { newSave, type SaveData, type Settings } from './saveSchema';
 
 export type StoreEvent =
   | { type: 'changed' }
   | { type: 'poolUnlocked'; pool: PoolId }
   | { type: 'purchase'; what: string }
-  | { type: 'sale'; coins: number; count: number };
+  | { type: 'sale'; coins: number; count: number }
+  | { type: 'levelUp'; level: number; reward: Reward }
+  | { type: 'questComplete'; quest: Quest }
+  | { type: 'reward'; reward: Reward; source: string }
+  | { type: 'streak'; streak: number; factor: number };
+
+export interface HatchResult {
+  ok: boolean;
+  reason?: string;
+  petId?: string;
+  isNew?: boolean;
+  level?: number;
+  refund?: number;
+  pityUsed?: boolean;
+}
 
 export type ActionResult = { ok: true } | { ok: false; reason: string };
 
@@ -110,7 +127,195 @@ export class GameStore {
   }
 
   valueOf(c: CatchRecord): number {
-    return saleValue(c.speciesId, c.weight, c.modifier, this.state.upgrades.sellValue, c.matchFactor);
+    return saleValue(c.speciesId, c.weight, c.modifier, this.state.upgrades.sellValue, c.matchFactor, c.bonus ?? 1);
+  }
+
+  // ---------- multipliers (pets + boosts + streak) ----------
+  /** Sum of equipped pets' bonus of one type, e.g. 0.35 = +35%. */
+  petBonus(type: PetBonus): number {
+    let sum = 0;
+    for (const id of this.state.equippedPets) {
+      const pet = PETS_BY_ID[id];
+      if (pet && pet.bonus === type) sum += petBonusAt(pet, this.state.pets[id] ?? 1);
+    }
+    return sum;
+  }
+  boostLeft(id: BoostId): number {
+    return Math.max(0, this.state.boosts[id] - this.state.playtime);
+  }
+  /** Multiplier locked into a catch at the moment it is landed. */
+  catchBonus(streak = this.state.streak): number {
+    const rush = this.boostLeft('coinRush') > 0 ? 2 : 1;
+    return Math.round((1 + this.petBonus('coins')) * rush * streakFactor(streak) * 1000) / 1000;
+  }
+  luckMultiplier(): number {
+    return (1 + this.petBonus('luck')) * (this.boostLeft('luckyCharm') > 0 ? 2 : 1);
+  }
+  reelMultiplier(): number {
+    return (1 + this.petBonus('reel')) * (this.boostLeft('quickReel') > 0 ? 1.4 : 1);
+  }
+
+  // ---------- xp, levels, rewards ----------
+  get xpNeeded(): number {
+    return xpToNext(this.state.level);
+  }
+  private addXp(n: number): void {
+    this.state.xp += Math.max(0, Math.round(n));
+    while (this.state.xp >= xpToNext(this.state.level)) {
+      this.state.xp -= xpToNext(this.state.level);
+      this.state.level++;
+      const reward = levelReward(this.state.level);
+      this.applyReward(reward, false);
+      this.emit({ type: 'levelUp', level: this.state.level, reward });
+    }
+  }
+  private applyReward(r: Reward, withXp = true): void {
+    if (r.coins) {
+      this.state.coins += r.coins;
+      this.state.totalCoinsEarned += r.coins;
+    }
+    if (r.meadowTickets) this.state.tickets.meadow += r.meadowTickets;
+    if (r.reefTickets) this.state.tickets.reef += r.reefTickets;
+    if (withXp && r.xp) this.addXp(r.xp);
+  }
+
+  // ---------- quests ----------
+  /** Make sure today's quests exist (new set each local day). */
+  ensureQuests(today: string): void {
+    if (this.state.quests.day === today && this.state.quests.list.length) return;
+    this.state.quests = { day: today, list: generateQuests(today, this.state.level) };
+    this.commit();
+  }
+  private progressQuest(kind: QuestKind, amount: number, absolute = false): void {
+    for (const q of this.state.quests.list) {
+      if (q.kind !== kind || q.claimed || q.progress >= q.target) continue;
+      q.progress = Math.min(q.target, absolute ? Math.max(q.progress, amount) : q.progress + amount);
+      if (q.progress >= q.target) this.emit({ type: 'questComplete', quest: q });
+    }
+  }
+  claimQuest(id: string): ActionResult {
+    const q = this.state.quests.list.find((x) => x.id === id);
+    if (!q) return { ok: false, reason: 'Quest not found.' };
+    if (q.claimed) return { ok: false, reason: 'Already claimed.' };
+    if (q.progress < q.target) return { ok: false, reason: 'Not finished yet.' };
+    q.claimed = true;
+    this.applyReward(q.reward);
+    this.state.nextTx++;
+    this.commit();
+    this.emit({ type: 'reward', reward: q.reward, source: 'Quest complete' });
+    return { ok: true };
+  }
+  /** Perfect cast counter for quests (called by the fishing controller). */
+  recordPerfectCast(): void {
+    this.progressQuest('perfect', 1);
+  }
+  /** An escaped fish ends the hot streak. */
+  breakStreak(): void {
+    if (this.state.streak === 0) return;
+    this.state.streak = 0;
+    this.commit();
+  }
+
+  // ---------- daily reward ----------
+  dailyInfo(today: string): { available: boolean; day: number; reward: Reward } {
+    const st = dailyStatus(this.state.daily, today);
+    return { ...st, reward: dailyReward(st.day, this.state.level) };
+  }
+  claimDaily(today: string): ActionResult & { reward?: Reward; day?: number } {
+    const info = this.dailyInfo(today);
+    if (!info.available) return { ok: false, reason: 'Come back tomorrow for the next reward.' };
+    this.state.daily = { lastClaim: today, streak: info.day === 1 ? 1 : this.state.daily.streak + 1 };
+    this.applyReward(info.reward);
+    this.state.nextTx++;
+    this.commit();
+    return { ok: true, reward: info.reward, day: info.day };
+  }
+
+  // ---------- pets & eggs ----------
+  eggStatus(egg: EggId): { unlocked: boolean; canAfford: boolean; ticket: boolean; level: number } {
+    const def = EGGS_BY_ID[egg];
+    const ticket = (egg === 'meadow' && this.state.tickets.meadow > 0) || (egg === 'reef' && this.state.tickets.reef > 0);
+    return { unlocked: this.state.level >= def.level, canAfford: ticket || this.state.coins >= def.cost, ticket, level: def.level };
+  }
+  /** Open one egg (a ticket is used first when available). One transaction, saved once. */
+  hatch(egg: EggId, rng: Rng): HatchResult {
+    const def = EGGS_BY_ID[egg];
+    if (!def) return { ok: false, reason: 'Unknown egg.' };
+    const st = this.eggStatus(egg);
+    if (!st.unlocked) return { ok: false, reason: `Reach level ${def.level} to open the ${def.name}.` };
+    if (!st.canAfford) return { ok: false, reason: 'Not enough coins.' };
+    if (st.ticket) {
+      if (egg === 'meadow') this.state.tickets.meadow--;
+      else this.state.tickets.reef--;
+    } else this.state.coins -= def.cost;
+    const roll = rollEgg(egg, this.state.eggPity[egg], PITY, rng);
+    const pet = PETS_BY_ID[roll.petId];
+    this.state.eggPity[egg] = isRarePlus(pet.rarity) ? 0 : this.state.eggPity[egg] + 1;
+    const had = this.state.pets[pet.id] ?? 0;
+    let refund = 0;
+    if (had >= PET_MAX_LEVEL) {
+      refund = Math.round(def.cost * DUPLICATE_REFUND);
+      this.state.coins += refund;
+    } else this.state.pets[pet.id] = had + 1;
+    // fill a free slot automatically so new players see the effect at once
+    if (!had && this.state.equippedPets.length < this.state.petSlots) this.state.equippedPets.push(pet.id);
+    this.state.eggsOpened++;
+    this.state.nextTx++;
+    this.progressQuest('hatch', 1);
+    this.commit();
+    return { ok: true, petId: pet.id, isNew: !had, level: this.state.pets[pet.id], refund, pityUsed: roll.pityUsed };
+  }
+  equipPet(id: string): ActionResult {
+    if (!this.state.pets[id]) return { ok: false, reason: 'Not owned.' };
+    if (this.state.equippedPets.includes(id)) return { ok: true };
+    if (this.state.equippedPets.length >= this.state.petSlots) return { ok: false, reason: 'All pet slots are full. Unequip one first or buy another slot.' };
+    this.state.equippedPets.push(id);
+    this.commit();
+    return { ok: true };
+  }
+  unequipPet(id: string): void {
+    this.state.equippedPets = this.state.equippedPets.filter((p) => p !== id);
+    this.commit();
+  }
+  /** Equip the strongest pets by total bonus (simple, explainable). */
+  equipBest(): void {
+    const owned = PETS.filter((p) => this.state.pets[p.id]).sort((a, b) => petBonusAt(b, this.state.pets[b.id]) - petBonusAt(a, this.state.pets[a.id]));
+    this.state.equippedPets = owned.slice(0, this.state.petSlots).map((p) => p.id);
+    this.commit();
+  }
+  petSlotCost(): number | null {
+    const i = this.state.petSlots - 1;
+    return i < PET_SLOT_COSTS.length ? PET_SLOT_COSTS[i] : null;
+  }
+  buyPetSlot(): ActionResult {
+    const cost = this.petSlotCost();
+    if (cost === null) return { ok: false, reason: 'All slots unlocked.' };
+    if (this.state.coins < cost) return { ok: false, reason: 'Not enough coins.' };
+    this.state.coins -= cost;
+    this.state.petSlots++;
+    this.state.nextTx++;
+    this.commit();
+    this.emit({ type: 'purchase', what: 'Pet slot' });
+    return { ok: true };
+  }
+
+  // ---------- boosts ----------
+  boostCost(id: BoostId): number {
+    const b = BOOSTS_BY_ID[id];
+    return b.baseCost + b.perLevel * (this.state.level - 1);
+  }
+  buyBoost(id: BoostId): ActionResult {
+    const b = BOOSTS_BY_ID[id];
+    if (!b) return { ok: false, reason: 'Unknown boost.' };
+    const cost = this.boostCost(id);
+    if (this.state.coins < cost) return { ok: false, reason: 'Not enough coins.' };
+    this.state.coins -= cost;
+    // stacking extends the timer
+    this.state.boosts[id] = Math.max(this.state.boosts[id], this.state.playtime) + b.seconds;
+    this.state.nextTx++;
+    this.commit();
+    this.emit({ type: 'purchase', what: b.name });
+    return { ok: true };
   }
 
   // ---------- fishing ----------
@@ -134,11 +339,15 @@ export class GameStore {
    * Commits a won catch exactly once. Consumes the attempt's reservation.
    * Returns flags for the reveal; returns null if this catch ID was already committed.
    */
-  commitCatch(rec: Omit<CatchRecord, 'ordinal' | 'favorite'>): { newSpecies: boolean; newRecord: boolean } | null {
+  commitCatch(rec: Omit<CatchRecord, 'ordinal' | 'favorite' | 'bonus'>): { newSpecies: boolean; newRecord: boolean; xp: number; bonus: number } | null {
     if (this.state.inventory.some((c) => c.id === rec.id) || this.committedIds.has(rec.id)) return null;
     this.committedIds.add(rec.id);
     this.releaseSlot();
-    const full: CatchRecord = { ...rec, ordinal: this.state.nextOrdinal++, favorite: false };
+    // hot streak counts this fish; pets, boosts and streak are locked into the record now
+    this.state.streak++;
+    this.state.bestStreak = Math.max(this.state.bestStreak, this.state.streak);
+    const bonus = this.catchBonus(this.state.streak);
+    const full: CatchRecord = { ...rec, bonus, ordinal: this.state.nextOrdinal++, favorite: false };
     this.state.inventory.push(full);
     const value = this.valueOf(full);
     const j = this.state.journal[rec.speciesId];
@@ -156,8 +365,16 @@ export class GameStore {
       this.state.bestCatch = { speciesId: rec.speciesId, weight: rec.weight, modifier: rec.modifier };
     }
     this.state.tutorial.firstCatch = true;
+    this.state.totalCaught++;
+    const xp = xpForCatch(rec.rarity, newSpecies, this.petBonus('xp'));
+    this.progressQuest('catch', 1);
+    if (isRarePlus(rec.rarity)) this.progressQuest('catchRare', 1);
+    this.progressQuest('streak', this.state.streak, true);
+    this.addXp(xp);
     this.commit();
-    return { newSpecies, newRecord };
+    const f = streakFactor(this.state.streak);
+    if (f > streakFactor(this.state.streak - 1)) this.emit({ type: 'streak', streak: this.state.streak, factor: f });
+    return { newSpecies, newRecord, xp, bonus };
   }
   private committedIds = new Set<string>();
 
@@ -186,6 +403,7 @@ export class GameStore {
     this.state.inventory = this.state.inventory.filter((c) => !set.has(c.id));
     this.state.coins += coins;
     this.state.totalCoinsEarned += coins;
+    this.progressQuest('sell', coins);
     this.state.tutorial.firstSale = true;
     this.state.nextTx++;
     this.commit();

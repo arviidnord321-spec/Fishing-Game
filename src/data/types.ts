@@ -86,6 +86,8 @@ export interface CatchRecord {
   weight: number;
   modifier: ModifierId;
   matchFactor: number;
+  /** Pets, boosts and hot streak locked in when the fish was landed (≥ 1). */
+  bonus: number;
   ordinal: number;
   pool: PoolId;
   favorite: boolean;
