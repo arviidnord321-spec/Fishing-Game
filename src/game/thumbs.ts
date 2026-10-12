@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import type { ModifierId } from '../data/types';
 import { buildFish } from './fishModels';
+import { buildPet } from './petModels';
+
+const FISH_CAM = { pos: new THREE.Vector3(0.35, 0.35, 2.6), look: new THREE.Vector3(0, 0, 0) };
+const PET_CAM = { pos: new THREE.Vector3(0.15, 0.55, 1.75), look: new THREE.Vector3(0, 0.33, 0) };
 
 const W = 192;
 const H = 132;
@@ -27,14 +31,31 @@ export class ThumbnailRenderer {
   }
 
   get(speciesId: string, modifier: ModifierId, silhouette: boolean): string {
-    const key = `${speciesId}|${modifier}|${silhouette ? 1 : 0}`;
-    const hit = this.cache.get(key);
-    if (hit) return hit;
-    let url = '';
-    try {
+    return this.render(`${speciesId}|${modifier}|${silhouette ? 1 : 0}`, silhouette, () => {
       const fish = buildFish(speciesId, modifier);
       fish.rotation.y = -0.45;
-      this.scene.add(fish);
+      return fish;
+    }, FISH_CAM);
+  }
+
+  /** Pet portrait (three-quarter front view). */
+  pet(petId: string, silhouette: boolean): string {
+    return this.render(`pet:${petId}|${silhouette ? 1 : 0}`, silhouette, () => {
+      const g = buildPet(petId);
+      g.rotation.y = 0.45;
+      return g;
+    }, PET_CAM);
+  }
+
+  private render(key: string, silhouette: boolean, make: () => THREE.Object3D, cam: { pos: THREE.Vector3; look: THREE.Vector3 }): string {
+    const hit = this.cache.get(key);
+    if (hit !== undefined) return hit;
+    let url = '';
+    try {
+      const obj = make();
+      this.scene.add(obj);
+      this.camera.position.copy(cam.pos);
+      this.camera.lookAt(cam.look);
       this.scene.overrideMaterial = silhouette ? this.silhouette : null;
       const prevTarget = this.renderer.getRenderTarget();
       const prevClear = this.renderer.getClearAlpha();
@@ -45,7 +66,7 @@ export class ThumbnailRenderer {
       this.renderer.readRenderTargetPixels(this.target, 0, 0, W, H, this.pixels);
       this.renderer.setRenderTarget(prevTarget);
       this.renderer.setClearAlpha(prevClear);
-      this.scene.remove(fish);
+      this.scene.remove(obj);
       const g = this.canvas.getContext('2d')!;
       const img = g.createImageData(W, H);
       // flip vertically: GL rows start at the bottom

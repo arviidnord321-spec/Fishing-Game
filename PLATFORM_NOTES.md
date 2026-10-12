@@ -124,6 +124,8 @@ platform approval.**
 | Progress through the SDK Data module, no parallel localStorage save | ✅ in CrazyGames builds |
 | Keyboard input doesn't scroll the host page; Esc and browser shortcuts not used | ✅ |
 | Mild content (PEGI 12 bound), English | ✅ |
+| No real-money purchases; random rewards transparent | ✅ eggs, boosts and cosmetics cost earned coins only. Every egg shows its exact odds and a pity guarantee. No purchasable premium currency. (Re-check the CrazyGames rules on randomized rewards before submitting.) |
+| Popups don't block gameplay | ✅ celebration banners are non-blocking; the daily panel and hatch reveal only open between casts |
 | No console logging in normal play | ✅ no `console.log/info/debug` in `src/`; warnings only on SDK init failure |
 | Runs smoothly on lower-end hardware | ⚠️ Auto quality detects software rendering and adapts at runtime. Measured only in a CPU-rendered headless Chromium; **real-device testing is still required** |
 

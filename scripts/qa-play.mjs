@@ -4,7 +4,7 @@
 // information a player sees — and presses Space / E / buttons.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
-import { installBot as _installBot, fishOnce as _fishOnce, walkTo as _walkTo } from './qa-bot.mjs';
+import { installBot as _installBot, fishOnce as _fishOnce, walkTo as _walkTo, dismissDaily } from './qa-bot.mjs';
 
 const [base, outDir, W = '1280', H = '720', ...flags] = process.argv.slice(2);
 const touch = flags.includes('--touch');
@@ -74,6 +74,7 @@ let s = await snap();
 note(`after fishing: inventory=${s.inventory} reserved=${s.reserved} state=${s.state}`);
 
 // Sell at the stand
+note(`daily popup handled: ${await dismissDaily(page)}`);
 s = await walkTo(-6.2, 10.6);
 note(`at stand: pos=${s.pos.x.toFixed(1)},${s.pos.z.toFixed(1)}`);
 await page.keyboard.press('KeyE');

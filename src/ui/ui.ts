@@ -6,7 +6,10 @@ import type { InputManager } from '../game/input';
 import { eligibleSpecies, effectiveLuck, tierProbabilities } from '../logic/catchResolver';
 import { DEFAULT_BINDINGS } from '../logic/saveSchema';
 import type { GameStore } from '../logic/store';
-import { esc, fmtCoins, fmtCompact, h, setHtml, setText, show } from './dom';
+import type { EggId } from '../data/pets';
+import type { HatchResult } from '../logic/store';
+import { esc, fmtCoins, fmtCompact, fmtTime, h, setHtml, setText, show } from './dom';
+import { boostsTab, dailyBody, eggsTab, hatchOpen, petsBody, questViews, type MetaDeps, type QuestView } from './metaUi';
 
 export interface WorldLabel {
   id: string;
@@ -50,6 +53,12 @@ export interface HudView {
   debug: string | null;
   eventVignette: boolean;
   fps: { fps: number; label: string } | null;
+  level: number;
+  xp: number;
+  xpNeed: number;
+  streak: { count: number; factor: number } | null;
+  boosts: { id: string; name: string; left: number }[];
+  dailyReady: boolean;
 }
 
 export interface CatchCardInfo {
@@ -61,11 +70,13 @@ export interface CatchCardInfo {
   matchFactor: number;
   newSpecies: boolean;
   newRecord: boolean;
+  bonus: number;
+  xp: number;
   bagUsed: number;
   bagCap: number;
 }
 
-export type PanelName = 'bag' | 'stand' | 'shop' | 'journal' | 'pause';
+export type PanelName = 'bag' | 'stand' | 'shop' | 'journal' | 'pause' | 'pets' | 'daily';
 
 export interface UIDeps {
   store: GameStore;
@@ -83,6 +94,11 @@ export interface UIDeps {
   onRetrySave: () => void;
   onRewardedBobber: () => Promise<'granted' | 'unavailable' | 'busy'>;
   onSkipTutorial: () => void;
+  petThumb: (id: string, silhouette: boolean) => string;
+  onHatch: (egg: EggId) => HatchResult;
+  onClaimDaily: () => void;
+  onClaimQuest: (id: string) => void;
+  today: () => string;
   click: () => void;
   debugActions?: Record<string, () => void>;
 }
@@ -109,12 +125,17 @@ export class UI {
   private toastsEl!: HTMLElement;
   private panel: PanelName | null = null;
   private overlay: HTMLElement | null = null;
-  private panelState = { tab: 'rods', sort: 'newest' as 'newest' | 'value' | 'weight' | 'rarity', selected: new Set<string>(), journalSel: '', journalPool: 'all', journalFilter: 'all', pauseTab: 'settings' };
+  private panelState = { tab: 'eggs', sort: 'newest' as 'newest' | 'value' | 'weight' | 'rarity', selected: new Set<string>(), journalSel: '', journalPool: 'all', journalFilter: 'all', pauseTab: 'settings' };
   private catchCard: HTMLElement | null = null;
   private actionDown = false;
   private lastLures = '';
   private confirmEl: HTMLElement | null = null;
   private hintText: string | null = null;
+  private popupsEl!: HTMLElement;
+  private floatsEl!: HTMLElement;
+  private questsKey = '';
+  private chipsKey = '';
+  private questsCollapsed = typeof matchMedia === 'function' && matchMedia('(max-height: 520px)').matches;
   private hintPlaced = 0;
   private rootRect: DOMRect = new DOMRect();
 
@@ -155,7 +176,12 @@ export class UI {
       h('span', { class: 'bagbar', 'aria-hidden': 'true' }, E.bagFill),
     );
     E.save = h('div', { class: 'pill save-chip' });
-    const topLeft = h('div', { class: 'top-left' }, h('div', { class: 'status-card' }, E.coinPill, E.bagPill), E.save);
+    E.levelNum = h('b');
+    E.xpFill = h('i');
+    E.levelRow = h('div', { class: 'level-row', 'aria-label': 'Player level' }, h('span', { class: 'lvl-badge' }, 'Lv ', E.levelNum), h('span', { class: 'xpbar', 'aria-hidden': 'true' }, E.xpFill));
+    E.quests = h('div', { class: 'quest-card interactive' });
+    E.chips = h('div', { class: 'chip-row' });
+    const topLeft = h('div', { class: 'top-left' }, h('div', { class: 'status-card' }, E.levelRow, E.coinPill, E.bagPill), E.chips, E.quests, E.save);
 
     E.goal = h('div', { class: 'goal', role: 'status', 'aria-live': 'polite' });
     const topCenter = h('div', { class: 'top-center' }, E.goal);
@@ -165,12 +191,17 @@ export class UI {
     E.phase = h('div', { class: 'pill phase' }, E.phaseIco, E.phaseLbl);
     E.pauseBtn = h('button', { class: 'icon-btn', 'aria-label': 'Pause and settings', title: 'Pause (P)', onclick: () => this.toggle('pause') }, 'II');
     E.fps = h('div', { class: 'pill fps-chip', 'aria-label': 'Frame rate' });
-    const topRight = h('div', { class: 'top-right' }, E.fps, E.phase, E.pauseBtn);
+    E.gift = h('button', { class: 'icon-btn gift', 'aria-label': 'Daily reward', title: 'Daily reward', onclick: () => this.toggle('daily') }, '🎁', h('span', { class: 'badge dot' }, '!'));
+    const topRight = h('div', { class: 'top-right' }, E.fps, E.phase, E.gift, E.pauseBtn);
 
     E.bagBtn = h('button', { class: 'icon-btn', 'aria-label': 'Bag', title: 'Bag (B)', onclick: () => this.toggle('bag') }, '◧', h('span', { class: 'lbl' }, 'BAG'));
     E.journalBtn = h('button', { class: 'icon-btn', 'aria-label': 'Journal', title: 'Journal (J)', onclick: () => this.toggle('journal') }, '✎', h('span', { class: 'lbl' }, 'BOOK'));
     E.controlsHint = h('div', { class: 'controls-hint' });
-    const bottomLeft = h('div', { class: 'bottom-left' }, E.bagBtn, E.journalBtn, E.controlsHint);
+    E.shopBtn = h('button', { class: 'icon-btn shop', 'aria-label': 'Shop', title: 'Shop: eggs, boosts, rods, upgrades', onclick: () => this.toggle('shop') }, '🛒', h('span', { class: 'lbl' }, 'SHOP'));
+    E.petsBtn = h('button', { class: 'icon-btn', 'aria-label': 'Pets', title: 'Pets', onclick: () => this.toggle('pets') }, '🐾', h('span', { class: 'lbl' }, 'PETS'));
+    const bottomLeft = h('div', { class: 'bottom-left' }, E.bagBtn, E.journalBtn, E.shopBtn, E.petsBtn, E.controlsHint);
+    this.popupsEl = h('div', { class: 'popups', 'aria-live': 'polite' });
+    this.floatsEl = h('div', { class: 'floats', 'aria-hidden': 'true' });
 
     E.action = h('button', { class: 'action-btn', 'data-game-action': '1', 'aria-label': 'Cast' }, 'CAST');
     const act = E.action;
@@ -239,6 +270,7 @@ export class UI {
     E.debugText = h('div');
     E.debug = h('div', { class: 'debug' }, E.debugText);
 
+    this.root.append(this.popupsEl, this.floatsEl);
     this.root.append(E.vignette, E.labels, topLeft, topCenter, topRight, bottomLeft, bottomRight, E.cast, E.reel, this.toastsEl, E.fishOn, E.hint, E.joyBase, E.joyKnob, E.joyHint, E.debug);
     if (d.debugActions) {
       const box = h('div');
@@ -256,6 +288,13 @@ export class UI {
     E.bagPill.classList.toggle('full', full);
     const fillPct = `${Math.min(100, (v.bagUsed / Math.max(1, v.bagCap)) * 100)}%`;
     if (E.bagFill.style.width !== fillPct) E.bagFill.style.width = fillPct;
+    setText(E.levelNum, String(v.level));
+    const xpPct = `${Math.min(100, (v.xp / Math.max(1, v.xpNeed)) * 100).toFixed(1)}%`;
+    if (E.xpFill.style.width !== xpPct) E.xpFill.style.width = xpPct;
+    E.levelRow.title = `${v.xp} / ${v.xpNeed} XP to level ${v.level + 1}`;
+    E.gift.classList.toggle('ready', v.dailyReady);
+    this.renderChips(v);
+    this.renderQuests();
     show(E.fps, !!v.fps);
     if (v.fps) {
       setText(E.fps, `${Math.round(v.fps.fps)} FPS · ${v.fps.label}`);
@@ -376,6 +415,95 @@ export class UI {
     } else show(E.debug, false);
   }
 
+  private renderChips(v: HudView): void {
+    const key = `${v.streak ? `${v.streak.count}:${v.streak.factor}` : ''}|${v.boosts.map((b) => `${b.id}:${Math.ceil(b.left)}`).join(',')}`;
+    if (key === this.chipsKey) return;
+    this.chipsKey = key;
+    const E = this.el;
+    E.chips.innerHTML = '';
+    if (v.streak) E.chips.append(h('span', { class: 'chip-hud streak', title: 'Hot streak: land fish in a row without losing one' }, `🔥 ${v.streak.count} · ×${v.streak.factor.toFixed(1)}`));
+    for (const b of v.boosts) E.chips.append(h('span', { class: `chip-hud boost b-${b.id}`, title: b.name }, `${b.id === 'coinRush' ? '¢×2' : b.id === 'luckyCharm' ? '☘×2' : '⟳+40%'} ${fmtTime(b.left)}`));
+    show(E.chips, E.chips.childElementCount > 0);
+  }
+
+  private renderQuests(): void {
+    const qs = questViews(this.d.store);
+    const key = `${this.questsCollapsed}|${qs.map((q) => `${q.id}:${q.progress}:${q.claimed}`).join(',')}`;
+    if (key === this.questsKey) return;
+    this.questsKey = key;
+    const E = this.el;
+    E.quests.innerHTML = '';
+    if (!qs.length) {
+      show(E.quests, false);
+      return;
+    }
+    show(E.quests, true);
+    const doneCount = qs.filter((q) => q.claimed).length;
+    const ready = qs.filter((q) => q.done && !q.claimed).length;
+    E.quests.append(
+      h('button', { class: 'quest-head', 'aria-expanded': String(!this.questsCollapsed), onclick: () => { this.questsCollapsed = !this.questsCollapsed; this.questsKey = ''; } }, h('span', {}, `Daily quests ${doneCount}/${qs.length}`), ready ? h('span', { class: 'badge-ready' }, `${ready} ready`) : null, h('span', { class: 'caret' }, this.questsCollapsed ? '▸' : '▾')),
+    );
+    if (this.questsCollapsed) return;
+    for (const q of qs) E.quests.append(this.questRow(q));
+  }
+
+  private questRow(q: QuestView): HTMLElement {
+    const pctDone = Math.min(100, (q.progress / q.target) * 100);
+    return h(
+      'div',
+      { class: `quest${q.claimed ? ' claimed' : q.done ? ' done' : ''}` },
+      h('div', { class: 'quest-top' }, h('span', {}, q.label), q.claimed ? h('span', { class: 'q-ok' }, '✓') : q.done ? h('button', { class: 'btn small primary', onclick: () => this.d.onClaimQuest(q.id) }, 'Claim') : h('span', { class: 'q-num' }, `${fmtCompact(q.progress)}/${fmtCompact(q.target)}`)),
+      h('span', { class: 'qbar' }, h('i', { style: `width:${pctDone}%` })),
+    );
+  }
+
+  // ------------------------------------------------------------------ celebration popups
+  /** Non-blocking celebration banner (never pauses play). */
+  celebrate(title: string, sub: string, kind: 'level' | 'quest' | 'streak' | 'reward' | 'pet' = 'reward', ms = 3200): void {
+    const el = h('div', { class: `celebrate c-${kind}`, role: 'status' }, h('div', { class: 'c-title' }, title), sub ? h('div', { class: 'c-sub' }, sub) : null);
+    if (!this.root.classList.contains('reduced-motion')) {
+      const conf = h('div', { class: 'confetti', 'aria-hidden': 'true' });
+      for (let i = 0; i < 18; i++) {
+        const b = h('i');
+        b.style.setProperty('--x', `${(Math.random() * 2 - 1) * 160}px`);
+        b.style.setProperty('--r', `${Math.random() * 720 - 360}deg`);
+        b.style.setProperty('--d', `${0.7 + Math.random() * 0.6}s`);
+        b.style.background = ['#ffd23f', '#4fe3f0', '#ff7ad9', '#7ee081', '#ffffff'][i % 5];
+        conf.append(b);
+      }
+      el.append(conf);
+    }
+    this.popupsEl.append(el);
+    while (this.popupsEl.children.length > 2) this.popupsEl.firstElementChild!.remove();
+    setTimeout(() => el.classList.add('out'), ms);
+    setTimeout(() => el.remove(), ms + 400);
+  }
+
+  /** Small floating number (e.g. "+¢ 120", "+12 XP") rising from screen point x, y. */
+  floatText(text: string, x: number, y: number, cls = ''): void {
+    const el = h('div', { class: `float ${cls}` }, text);
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    this.floatsEl.append(el);
+    setTimeout(() => el.remove(), 1300);
+  }
+
+  private metaDeps(): MetaDeps {
+    return {
+      store: this.d.store,
+      petThumb: this.d.petThumb,
+      hatch: this.d.onHatch,
+      toast: (t, c, ms) => this.toast(t, c, ms),
+      rerender: () => this.renderPanel(),
+      click: this.d.click,
+      reducedMotion: () => this.root.classList.contains('reduced-motion'),
+    };
+  }
+
+  get modalOpen(): boolean {
+    return !!this.panel || hatchOpen() || !!this.confirmEl;
+  }
+
   private updateLures(l: HudView['lures']): void {
     const E = this.el;
     show(E.lures, !!l);
@@ -426,6 +554,8 @@ export class UI {
         c.modifier !== 'normal' ? h('span', { class: 'tag mod' }, `✦ ${mod.name}`) : null,
         c.matchFactor > 1 ? h('span', { class: 'tag match' }, '✓ Current match +10%') : null,
         c.newRecord ? h('span', { class: 'tag record' }, '▲ Weight record') : null,
+        c.bonus > 1.001 ? h('span', { class: 'tag bonus' }, `Bonus ×${c.bonus.toFixed(2)}`) : null,
+        c.xp > 0 ? h('span', { class: 'tag xp' }, `+${c.xp} XP`) : null,
       ),
       h(
         'div',
@@ -525,6 +655,12 @@ export class UI {
       case 'pause':
         panel = this.pausePanel();
         break;
+      case 'pets':
+        panel = this.shell('Pets', petsBody(this.metaDeps()), h('footer', {}, h('span', { class: 'total' }, `${Object.keys(this.d.store.state.pets).length} pets collected`), h('button', { class: 'btn primary', onclick: () => this.open('shop', 'eggs') }, 'Get more pets')));
+        break;
+      case 'daily':
+        panel = this.shell('Daily reward', dailyBody(this.metaDeps(), this.d.today(), () => this.d.onClaimDaily()));
+        break;
     }
     this.overlay.append(panel);
     const body = panel.querySelector('.body');
@@ -623,12 +759,15 @@ export class UI {
     const tabs = h(
       'div',
       { class: 'tabs', role: 'tablist' },
-      ...[['rods', 'Rods'], ['upgrades', 'Upgrades']].map(([id, l]) =>
+      ...[['eggs', '🥚 Eggs'], ['boosts', '⚡ Boosts'], ['rods', 'Rods'], ['upgrades', 'Upgrades'], ['style', 'Style']].map(([id, l]) =>
         h('button', { class: `tab${tab === id ? ' sel' : ''}`, role: 'tab', 'aria-selected': String(tab === id), onclick: () => { this.panelState.tab = id; this.renderPanel(); } }, l),
       ),
     );
     let body: HTMLElement;
-    if (tab === 'rods') {
+    if (tab === 'eggs') body = eggsTab(this.metaDeps());
+    else if (tab === 'boosts') body = boostsTab(this.metaDeps());
+    else if (tab === 'style') body = this.styleBody();
+    else if (tab === 'rods') {
       const cur = s.rod;
       const list = h('div', { class: 'rods' });
       for (const rod of RODS) {
@@ -681,7 +820,8 @@ export class UI {
         );
       }
     }
-    return this.shell('Workshop', body, h('footer', {}, h('span', { class: 'total' }, `¢ ${fmtCoins(s.state.coins)}`)), tabs);
+    const t = s.state.tickets;
+    return this.shell('Shop', body, h('footer', {}, h('span', { class: 'total' }, `¢ ${fmtCoins(s.state.coins)}${t.meadow || t.reef ? ` · 🎟 ${t.meadow} Meadow · ${t.reef} Reef` : ''}`)), tabs);
   }
 
   private journalPanel(): HTMLElement {
@@ -770,6 +910,44 @@ export class UI {
     return `Chance ${where}: ${f(pct(1))}% (×1.00 cast) · ${f(pct(2))}% (perfect cast)${sp.pool === 'rift' ? ' — includes the rift’s ×1.5 luck' : ''}.`;
   }
 
+  /** Bobber styles (shop Style tab and pause Wardrobe). */
+  private styleBody(): HTMLElement {
+    const s = this.d.store;
+    const body = h('div', { class: 'settings' });
+    body.append(h('p', { class: 'cmp' }, 'Bobber styles are cosmetic only.'));
+    for (const b of BOBBERS) {
+      const owned = s.state.bobbers.includes(b.id);
+      const eq = s.state.equippedBobber === b.id;
+      const row = h('div', { class: 'row' }, h('span', { html: `<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:linear-gradient(${b.top} 50%, ${b.bottom} 50%);vertical-align:middle;margin-right:8px;border:2px solid #fff"></span>${b.name}` }));
+      const btns = h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end' });
+      if (eq) btns.append(h('button', { class: 'btn small', disabled: true }, 'Equipped'));
+      else if (owned) btns.append(h('button', { class: 'btn small cyan', onclick: () => s.equipBobber(b.id) }, 'Equip'));
+      else {
+        btns.append(h('button', { class: 'btn small primary', disabled: s.state.coins < b.cost, onclick: (e: Event) => { (e.currentTarget as HTMLButtonElement).disabled = true; const r = s.buyBobber(b.id); if (!r.ok) this.toast(r.reason, 'bad'); } }, s.state.coins < b.cost ? `Not enough coins (¢ ${b.cost})` : `Buy ¢ ${b.cost}`));
+        // Compiled out of standalone/Basic builds; Full builds still require platform consent at runtime.
+        if (__PLATFORM__ === 'crazygames-full' && this.d.adsEnabled && b.id === 'sunburst') {
+          btns.append(
+            h('button', {
+              class: 'btn small cyan',
+              onclick: async (e: Event) => {
+                const el = e.currentTarget as HTMLButtonElement;
+                el.disabled = true;
+                el.textContent = 'Loading ad…';
+                const r = await this.d.onRewardedBobber();
+                if (r === 'granted') this.toast('Sunburst bobber unlocked!', 'big');
+                else if (r === 'unavailable') this.toast('No ad available right now. You can still buy it with coins.', 'bad', 2600);
+                this.renderPanel();
+              },
+            }, '▶ Watch an ad to unlock'),
+          );
+        }
+      }
+      row.append(btns);
+      body.append(row);
+    }
+    return body;
+  }
+
   private pausePanel(): HTMLElement {
     const s = this.d.store;
     const st = s.state.settings;
@@ -833,37 +1011,7 @@ export class UI {
         h('ul', { class: 'help-list' }, h('li', {}, 'Arrow keys always move too. Enter also casts.'), h('li', {}, 'Mouse: left-click casts and reels, right-drag rotates the camera, wheel zooms.'), h('li', {}, 'Touch: left side joystick, right side drag to look, big button to cast and reel.')),
       );
     } else if (tab === 'wardrobe') {
-      body.append(h('p', { class: 'cmp' }, 'Bobber styles are cosmetic only.'));
-      for (const b of BOBBERS) {
-        const owned = s.state.bobbers.includes(b.id);
-        const eq = s.state.equippedBobber === b.id;
-        const row = h('div', { class: 'row' }, h('span', { html: `<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:linear-gradient(${b.top} 50%, ${b.bottom} 50%);vertical-align:middle;margin-right:8px;border:2px solid #fff"></span>${b.name}` }));
-        const btns = h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end' });
-        if (eq) btns.append(h('button', { class: 'btn small', disabled: true }, 'Equipped'));
-        else if (owned) btns.append(h('button', { class: 'btn small cyan', onclick: () => s.equipBobber(b.id) }, 'Equip'));
-        else {
-          btns.append(h('button', { class: 'btn small primary', disabled: s.state.coins < b.cost, onclick: (e: Event) => { (e.currentTarget as HTMLButtonElement).disabled = true; const r = s.buyBobber(b.id); if (!r.ok) this.toast(r.reason, 'bad'); } }, s.state.coins < b.cost ? `Not enough coins (¢ ${b.cost})` : `Buy ¢ ${b.cost}`));
-          // Compiled out of standalone/Basic builds; Full builds still require platform consent at runtime.
-          if (__PLATFORM__ === 'crazygames-full' && this.d.adsEnabled) {
-            btns.append(
-              h('button', {
-                class: 'btn small cyan',
-                onclick: async (e: Event) => {
-                  const el = e.currentTarget as HTMLButtonElement;
-                  el.disabled = true;
-                  el.textContent = 'Loading ad…';
-                  const r = await this.d.onRewardedBobber();
-                  if (r === 'granted') this.toast('Sunburst bobber unlocked!', 'big');
-                  else if (r === 'unavailable') this.toast('No ad available right now. You can still buy it with coins.', 'bad', 2600);
-                  this.renderPanel();
-                },
-              }, '▶ Watch an ad to unlock'),
-            );
-          }
-        }
-        row.append(btns);
-        body.append(row);
-      }
+      body.append(this.styleBody());
     } else {
       body.append(
         h(

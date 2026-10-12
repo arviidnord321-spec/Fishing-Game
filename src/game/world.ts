@@ -97,6 +97,7 @@ export class World {
     this.buildStand();
     this.buildWorkshop();
     this.buildPlinth();
+    this.buildHatchery();
     this.buildRiftClearing();
     this.buildDecor();
     this.buildLamps();
@@ -401,6 +402,59 @@ export class World {
     this.anchors.push({ id: 'plinth', pos: new THREE.Vector3(x, 3.4, z) });
   }
 
+  /** Pet Hatchery: an incubator with a big speckled egg under a glass dome. */
+  readonly hatcheryEgg = new THREE.Group();
+  private buildHatchery(): void {
+    const { x, z } = LANDMARKS.hatchery;
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+    g.rotation.y = Math.PI * 0.12;
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.4, 0.5, 12), flat('#f3e3c3'));
+    base.position.y = 0.25;
+    g.add(base);
+    const trim = new THREE.Mesh(new THREE.CylinderGeometry(1.28, 1.28, 0.08, 12), flat('#ff9de2'));
+    trim.position.y = 0.52;
+    g.add(trim);
+    const nest = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.16, 6, 14), flat('#c99a5b'));
+    nest.rotation.x = Math.PI / 2;
+    nest.position.y = 0.62;
+    g.add(nest);
+    for (let i = 0; i < 4; i++) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.8, 6), flat('#7a4c2b'));
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      post.position.set(Math.cos(a) * 1.05, 1.3, Math.sin(a) * 1.05);
+      g.add(post);
+    }
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.5, 0.9, 4), flat('#ff9de2'));
+    roof.rotation.y = Math.PI / 4;
+    roof.position.y = 2.6;
+    g.add(roof);
+    const sign = this.sign('PET EGGS', '#152B43', '#ffd1f2', 1.8, 0.45);
+    sign.position.set(0, 2.05, 1.08);
+    g.add(sign);
+    g.add(blobShadow(3.2));
+    this.staticRoot.add(g);
+    // the egg itself bobs and glows, so it stays out of the static bake
+    const eggMat = new THREE.MeshLambertMaterial({ color: '#cdb8ff', emissive: new THREE.Color('#3a2a6a') });
+    const egg = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 12), eggMat);
+    egg.scale.set(1, 1.3, 1);
+    this.hatcheryEgg.add(egg);
+    for (let i = 0; i < 7; i++) {
+      const spot = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), flat(i % 2 ? '#ffd76e' : '#8fe3f2'));
+      const a = i * 2.1;
+      const yy = -0.25 + (i / 7) * 0.6;
+      const r = 0.42 * Math.sqrt(1 - (yy / 0.55) ** 2);
+      spot.position.set(Math.cos(a) * r, yy * 1.3, Math.sin(a) * r);
+      spot.scale.set(1, 1, 0.4);
+      spot.lookAt(spot.position.clone().multiplyScalar(2));
+      this.hatcheryEgg.add(spot);
+    }
+    this.hatcheryEgg.position.set(x, 1.15, z);
+    this.scene.add(this.hatcheryEgg);
+    this.colliders.push({ kind: 'circle', x, z, r: 1.45, h: 2.8, tag: 'hatchery' });
+    this.anchors.push({ id: 'hatchery', pos: new THREE.Vector3(x, 3.4, z) });
+  }
+
   private buildRiftClearing(): void {
     const p = POOLS.find((q) => q.id === 'rift')!;
     // ring of standing stones
@@ -701,6 +755,9 @@ export class World {
       this.beacon.children[1].scale.setScalar(1 + 0.15 * Math.sin(this.time * 3));
     }
     this.plinthDisplay.rotation.y += dt * 0.6;
+    this.hatcheryEgg.position.y = 1.15 + Math.sin(this.time * 2) * 0.06;
+    this.hatcheryEgg.rotation.y += dt * 0.5;
+    this.hatcheryEgg.rotation.z = Math.sin(this.time * 7) * (Math.sin(this.time * 0.9) > 0.85 ? 0.12 : 0);
   }
 
   /** Splash rings on a pool's water surface at a world point. */

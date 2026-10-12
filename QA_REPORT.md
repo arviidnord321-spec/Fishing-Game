@@ -1,6 +1,49 @@
 # QA report
 
-## Round 2: visual upgrade and performance (latest)
+## Round 3: pets, eggs, shop, levels, daily rewards, quests, popups (latest)
+
+Unit tests: **64/64 pass**. 14 are new in `tests/meta.test.ts`:
+- **Eggs:** published odds hold within ±1.5 points over 40,000 rolls per egg; pity guarantees
+  a rare-or-better on the 10th open.
+- **Hatch transaction:** charges once, level gates hold, tickets are used first, and new pets
+  auto-equip.
+- **Duplicates:** level a pet up, then refund once it's maxed.
+- **Slots and bonuses:** slot limits hold; bonuses add up.
+- **Catch bonus:** locked at landing.
+- **Boosts:** Coin Rush ×2 expires with active play time; buying again extends it.
+- **Hot streak:** steps at 3/5/10 and breaks on an escape.
+- **Levels:** XP level-ups pay rewards.
+- **Daily streak:** once per day, continues on consecutive days, resets after a gap, wraps
+  after day 7, and handles the year boundary.
+- **Quests:** deterministic per day; progress and claiming work, and a quest pays only once.
+- **Saves:** v1 → v2 migration keeps coins and catches; meta progression round-trips; invalid
+  pets are dropped.
+
+Browser runs (headless Chromium, SwiftShader):
+
+| Run | Result |
+| --- | --- |
+| `scripts/qa-pets.mjs` (QA build) | ✅ first catch, then the daily reward panel auto-opened between casts and claimed ¢100. Shop opened from the HUD on the Eggs tab. 5 Meadow eggs cost exactly ¢1,500, with NEW and level-up reveals. Boost bought, pet slot 2 bought, "Equip best" filled 2 slots. Next catch showed `Bonus ×2.00`/`×2.42` and the +XP tag. No console errors. |
+| 1280×720 keyboard/mouse full loop (release build) | ✅ 3/3 caught, sold, upgrade bought, persisted after reload, no errors |
+| 800×450 touch full loop (release build) | ✅ joystick, 3/3 caught, sold, persisted, no errors |
+
+Bugs found and fixed in this round:
+- The Pet Eggs hut and the Fish Stand overlapped in reach, and the hut always won, so a
+  player at the stand opened the egg shop. Now the nearest interactable wins, and the hut was
+  moved 1 m farther away.
+- The HUD Shop button opened the Rods tab; it now opens Eggs.
+- Pet belly patches showed jagged seams, and the belly hid the smile.
+- Followers were too small, and faced away from the camera at rest.
+
+Not verified: how engaging it feels with real players (needs playtesting), and emoji rendering
+of some HUD icons (🛒 🐾 🎁 🥚). Those rely on the player's system emoji font, and headless
+Linux renders them in grey.
+
+---
+
+## Round 2
+
+## Round 2 details: visual upgrade and performance
 
 **What changed:**
 - Painted terrain patches; about 1,800 clustered, wind-swayed grass tufts at Medium.

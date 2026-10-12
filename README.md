@@ -19,7 +19,7 @@ minutes a **Rift Bloom** opens a giant portal pool in the south clearing.
 ```bash
 npm install
 npm run dev            # http://localhost:5173 (debug overlay on)
-npm test               # 50 deterministic logic/save/platform/quality tests
+npm test               # 64 deterministic logic/save/platform/quality/meta tests
 npm run build          # standalone release build  -> dist/
 npm run preview        # serve dist/ locally
 ```
@@ -109,6 +109,41 @@ scripts/         economy simulation, Playwright QA scripts
 Gameplay advances on a fixed 1/60 s step with interpolated rendering. Time spent in the background
 is discarded, so a fight never fast-forwards. Gameplay randomness uses an injected seeded RNG;
 cosmetic randomness (particles, bobber jitter) is separate.
+
+## Pets, levels, daily rewards and quests
+
+All of these use **earned coins only**. Nothing can be bought with real money.
+
+- **Pets.** Open eggs at the **Pet Eggs** hut or in the 🛒 Shop:
+  - **Meadow Egg:** ¢300.
+  - **Reef Egg:** ¢2,500, from level 5.
+  - **Star Egg:** ¢15,000, from level 12.
+
+  Each egg's exact odds are printed on it. You are guaranteed a Rare or better within 10
+  opens. There are 18 original pets, and each boosts catch value, luck, reel speed or XP.
+  Duplicates level a pet up (max Lv 5, +25% of its base bonus per level). A duplicate of a
+  maxed pet refunds 40% of the egg price. Pets follow you around the island, flying or
+  hopping, and epic and legendary pets sparkle. You start with 1 pet slot; slots 2 and 3 cost
+  ¢1,500 and ¢8,000.
+- **Boosts** (Shop → Boosts):
+  - Coin Rush: ×2 catch value.
+  - Lucky Charm: ×2 luck.
+  - Quick Reel: +40% reel speed.
+
+  Each lasts 5 minutes of *active* play, buying again adds time, and the price scales with
+  level.
+- **Hot streak.** Land fish in a row without losing one: ×1.1 at 3, ×1.2 at 5, ×1.3 at 10.
+- **Catch bonus.** Pets, boosts and streak are locked into each catch when it's landed. The
+  reveal card shows the total ("Bonus ×1.27").
+- **Levels and XP.** XP comes from catches; rarer fish and new species give more. Every level
+  pays coins, every 3rd level gives a Meadow Egg ticket, and every 10th a Reef Egg ticket.
+- **Daily reward.** A 7-day calendar (coins, egg tickets, a big day 7) opens automatically
+  between casts on your first visit each day. Missing a day restarts at Day 1.
+- **Daily quests.** Three new quests every local day, for example "Catch 12 fish", "Land 4
+  perfect casts" or "Hatch 1 pet". They pay coins, XP and a ticket.
+- **Popups.** Level-ups, quest completions, streaks and rewards appear as short banners that
+  never pause the game. Modal panels (daily reward, hatching) only open between casts, never
+  during a fight.
 
 ## Graphics quality and performance
 

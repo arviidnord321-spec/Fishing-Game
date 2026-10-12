@@ -56,8 +56,22 @@ export async function installBot(page, touch = false) {
   }, touch);
 }
 
+/** Claim and close the daily-reward panel if it popped up (as a player would). */
+export async function dismissDaily(page) {
+  const daily = page.locator('.panel[aria-label="Daily reward"]');
+  if (await daily.count()) {
+    await page.locator('.big-btn').click().catch(() => {});
+    await page.waitForTimeout(300);
+    await page.locator('.panel .close').click().catch(() => {});
+    await page.waitForTimeout(300);
+    return true;
+  }
+  return false;
+}
+
 export async function fishOnce(page, i = 1, shot = async () => {}) {
   const snap = () => page.evaluate(() => window.__riftQA());
+  await dismissDaily(page);
   await page.evaluate(() => window.__botCast());
   const t0 = Date.now();
   let shotTaken = { cast: false, reel: false };

@@ -116,7 +116,7 @@ export const LANDMARKS = {
   stand: { x: -8, z: 8 },
   workshop: { x: 8, z: 8 },
   plinth: { x: 6, z: 13.5 },
-  wardrobe: { x: -6, z: 13.5 },
+  hatchery: { x: -7.5, z: 14.3 },
 };
 
 export const RARITY_LABEL: Record<Rarity, string> = {
@@ -153,4 +153,8 @@ export const LURES = [
 export const BOBBERS = [
   { id: 'classic', name: 'Classic', top: '#ff4d4d', bottom: '#ffffff', cost: 0 },
   { id: 'sunburst', name: 'Sunburst', top: '#ffb000', bottom: '#fff4c2', cost: BALANCE.cosmeticCost },
+  { id: 'mint', name: 'Mint Drop', top: '#4fe3c0', bottom: '#effff9', cost: 600 },
+  { id: 'berry', name: 'Berry Swirl', top: '#c83e8a', bottom: '#ffd1ea', cost: 1500 },
+  { id: 'night', name: 'Night Owl', top: '#28315e', bottom: '#ffd76e', cost: 4000 },
+  { id: 'rift', name: 'Rift Core', top: '#8a3cd1', bottom: '#ff8be0', cost: 12000 },
 ] as const;

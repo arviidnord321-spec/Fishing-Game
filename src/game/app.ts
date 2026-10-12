@@ -22,6 +22,11 @@ import { Npcs } from './npcs';
 import { PlayerController } from './player';
 import { AutoQuality, gpuName, initialPreset, QUALITY, type QualityPreset } from './quality';
 import { ThumbnailRenderer } from './thumbs';
+import { PetFollowers } from './petModels';
+import { dayKey } from '../logic/meta';
+import { rewardText } from '../ui/metaUi';
+import { BOOSTS, PETS_BY_ID, type EggId } from '../data/pets';
+import { streakFactor as streakFactorOf } from '../logic/meta';
 import { World } from './world';
 
 const STEP = BALANCE.sim.step;
@@ -83,6 +88,11 @@ export class GameApp {
   private qualityLog = '';
   private menuFrame = 0;
   private lastHud: HudView | null = null;
+  private pets: PetFollowers;
+  private petSparkle = 0;
+  private metaRng = createRng((Date.now() ^ 0x5bd1e995) >>> 0);
+  private pendingDaily = false;
+  private dayCheck = 0;
   /** QA-build-only feature switches for performance experiments (?exp=nograss,nowater,...). */
   private exp = '';
   private gpu = '';
@@ -148,6 +158,8 @@ export class GameApp {
     this.rings = new Rings(this.world.scene);
     this.npcs = new Npcs(this.world, this.particles);
     this.thumbs = new ThumbnailRenderer(this.renderer);
+    this.pets = new PetFollowers(this.world.scene);
+    if (DEBUG) (window as unknown as { __riftPetThumb: (id: string) => string }).__riftPetThumb = (id) => this.thumbs.pet(id, false);
 
     // bobber + line
     this.bobber = new THREE.Group();
@@ -189,6 +201,20 @@ export class GameApp {
       onSkipTutorial: () => {
         this.store.markTutorial('skipped');
       },
+      petThumb: (id, sil) => this.thumbs.pet(id, sil),
+      onHatch: (egg: EggId) => this.hatch(egg),
+      onClaimDaily: () => {
+        const r = this.store.claimDaily(dayKey(new Date()));
+        if (r.ok && r.reward) {
+          this.audio.play('chime');
+          this.ui.celebrate(`Day ${r.day} reward!`, rewardText(r.reward), 'reward');
+        } else if (!r.ok) this.ui.toast(r.reason, 'bad');
+      },
+      onClaimQuest: (id) => {
+        const r = this.store.claimQuest(id);
+        if (!r.ok) this.ui.toast(r.reason, 'bad');
+      },
+      today: () => dayKey(new Date()),
       click: () => this.audio.play('click'),
       debugActions: DEBUG
         ? {
@@ -235,7 +261,23 @@ export class GameApp {
         this.ui.toast(`${e.what} purchased!`, 'cyan', 1800);
         this.audio.play('upgrade');
       }
-      if (e.type === 'sale') this.audio.play('coin');
+      if (e.type === 'sale') {
+        this.audio.play('coin');
+        this.ui.floatText(`+¢ ${e.coins.toLocaleString('en-US')}`, 90, 80, 'coin');
+      }
+      if (e.type === 'levelUp') {
+        this.audio.play('upgrade');
+        this.ui.celebrate(`LEVEL ${e.level}!`, rewardText(e.reward), 'level', 3600);
+      }
+      if (e.type === 'questComplete') {
+        this.audio.play('chime');
+        this.ui.celebrate('Quest complete!', 'Claim your reward in the quest list', 'quest');
+      }
+      if (e.type === 'reward') this.ui.toast(`${e.source}: ${rewardText(e.reward)}`, 'big', 2400);
+      if (e.type === 'streak') {
+        this.audio.play('rare', 1.2);
+        this.ui.celebrate(`🔥 HOT STREAK ×${e.factor.toFixed(1)}`, `${e.streak} fish in a row — keep it going!`, 'streak', 2600);
+      }
     });
     this.repo.onStatus = () => {};
 
@@ -425,6 +467,13 @@ export class GameApp {
     }
 
     this.handleMenuKeys();
+    this.dailyTick(dt);
+    // the daily reward pops up only between casts, never over a fight or another menu
+    if (this.pendingDaily && this.fishing.state === 'FreeRoam' && !this.ui.modalOpen && this.simTime > 1.5 && this.store.state.tutorial.firstCatch) {
+      this.pendingDaily = false;
+      this.dailyShownFor.push(dayKey(new Date()));
+      this.ui.open('daily');
+    }
     if (!this.pause.paused) {
       this.acc += dt;
       let steps = 0;
@@ -603,7 +652,8 @@ export class GameApp {
       case 'caught':
         this.fishOnUntil = 0;
         this.startReveal(e.record.speciesId, e.record.modifier, e.record.weight, e.record.rarity);
-        this.ui.showCatch({ ...e.record, value: e.value, newSpecies: e.newSpecies, newRecord: e.newRecord, bagUsed: this.store.bagUsed, bagCap: this.store.capacity });
+        this.ui.showCatch({ ...e.record, value: e.value, newSpecies: e.newSpecies, newRecord: e.newRecord, xp: e.xp, bagUsed: this.store.bagUsed, bagCap: this.store.capacity });
+        if (e.xp) this.ui.floatText(`+${e.xp} XP`, this.container.clientWidth / 2, this.container.clientHeight * 0.42, 'xp');
         if (e.newSpecies && (e.record.speciesId === 'rift-leviathan' || this.store.discoveredCount() === SPECIES.length)) this.platform.happytime();
         break;
       case 'escaped': {
@@ -709,11 +759,24 @@ export class GameApp {
   }
 
   // ------------------------------------------------------------------ interactions
-  private nearInteractable(): 'stand' | 'workshop' | null {
+  /** The closest interactable in reach (stand, shop hut, pet eggs), measured past each one's reach. */
+  private nearInteractable(): 'stand' | 'workshop' | 'hatchery' | null {
     const p = this.player.pos;
-    if (Math.hypot(p.x - LANDMARKS.stand.x, p.z - LANDMARKS.stand.z) < 3.9) return 'stand';
-    if (Math.hypot(p.x - (LANDMARKS.workshop.x + 0.6), p.z - (LANDMARKS.workshop.z + 0.4)) < 4.0) return 'workshop';
-    return null;
+    const spots = [
+      { id: 'stand' as const, x: LANDMARKS.stand.x, z: LANDMARKS.stand.z, reach: 3.9 },
+      { id: 'workshop' as const, x: LANDMARKS.workshop.x + 0.6, z: LANDMARKS.workshop.z + 0.4, reach: 4.0 },
+      { id: 'hatchery' as const, x: LANDMARKS.hatchery.x, z: LANDMARKS.hatchery.z, reach: 3.4 },
+    ];
+    let best: (typeof spots)[number] | null = null;
+    let bestScore = Infinity;
+    for (const sp of spots) {
+      const score = Math.hypot(p.x - sp.x, p.z - sp.z) / sp.reach;
+      if (score < 1 && score < bestScore) {
+        best = sp;
+        bestScore = score;
+      }
+    }
+    return best ? best.id : null;
   }
 
   private interact(): void {
@@ -721,7 +784,36 @@ export class GameApp {
     const n = this.nearInteractable();
     if (n === 'stand') this.ui.open('stand');
     else if (n === 'workshop') this.ui.open('shop', 'rods');
+    else if (n === 'hatchery') this.ui.open('shop', 'eggs');
   }
+
+  /** Open an egg: the store does the transaction; this adds sound, sparkle and platform hooks. */
+  private hatch(egg: EggId) {
+    const r = this.store.hatch(egg, this.metaRng);
+    if (r.ok && r.petId) {
+      const pet = PETS_BY_ID[r.petId];
+      const big = pet.rarity === 'epic' || pet.rarity === 'legendary';
+      setTimeout(() => {
+        this.audio.play(big ? 'rare' : 'pop');
+        if (r.isNew) this.audio.play('chime');
+      }, this.store.state.settings.reducedMotion ? 0 : 1100);
+      if (pet.rarity === 'legendary' && r.isNew) this.platform.happytime();
+    }
+    return r;
+  }
+
+  /** Daily systems: today's quests, the daily reward reminder, and day rollover. */
+  private dailyTick(dt: number): void {
+    this.dayCheck -= dt;
+    if (this.dayCheck > 0) return;
+    this.dayCheck = 30;
+    const today = dayKey(new Date());
+    const fresh = this.store.state.quests.day !== today;
+    this.store.ensureQuests(today);
+    if (fresh && this.simTime > 5) this.ui.toast('New daily quests are ready!', 'cyan', 2600);
+    if (this.store.dailyInfo(today).available && !this.dailyShownFor.includes(today)) this.pendingDaily = true;
+  }
+  private dailyShownFor: string[] = [];
 
   private onPanelChange(p: PanelName | null): void {
     this.input.clear();
@@ -804,6 +896,18 @@ export class GameApp {
     this.world.update(dt, dn.nightBlend, ev.openness, ev.phase === 'notice');
     this.world.cullGrass(this.cam.camera.position);
     this.npcs.update(dt, ev.openness, s.settings.reducedMotion);
+    this.pets.sync(s.equippedPets, pp);
+    this.pets.update(dt, pp, this.player.facing, this.player.speed, s.settings.reducedMotion, this.cam.camera.position);
+    if (dt > 0) {
+      this.petSparkle -= dt;
+      if (this.petSparkle <= 0) {
+        this.petSparkle = 0.35;
+        for (const sp of this.pets.sparklePoints()) {
+          if (sp.rarity === 'legendary') this.particles.sparkle(sp.pos.x, sp.pos.y + 0.6, sp.pos.z, 3, 0.7, ['#ffd23f', '#fff3c4']);
+          else if (sp.rarity === 'epic') this.particles.sparkle(sp.pos.x, sp.pos.y + 0.6, sp.pos.z, 2, 0.6, ['#c38bff', '#ffffff']);
+        }
+      }
+    }
     this.updateBobberAndLine(dt);
     this.updateReveal(dt);
     this.particles.update(dt);
@@ -902,6 +1006,8 @@ export class GameApp {
     if (needSell) return this.sBeacon.set(LANDMARKS.stand.x + 1.3, 0, LANDMARKS.stand.z + 2.2);
     if (s.state.tutorial.firstSale && !s.state.tutorial.firstPurchase && !s.state.tutorial.skipped && s.state.coins >= Math.min(UPGRADES[2].costs[0], RODS[1].cost))
       return this.sBeacon.set(LANDMARKS.workshop.x - 0.6, 0, LANDMARKS.workshop.z + 2.6);
+    if (s.state.tutorial.firstPurchase && s.state.eggsOpened === 0 && (s.state.coins >= 300 || s.state.tickets.meadow > 0))
+      return this.sBeacon.set(LANDMARKS.hatchery.x + 1.2, 0, LANDMARKS.hatchery.z - 2.4);
     return null;
   }
 
@@ -941,6 +1047,11 @@ export class GameApp {
           ? { text: 'Buy an upgrade at the Workshop', sub: 'Rods land bigger fish; upgrades boost luck, value and bag' }
           : { text: `Catch & sell more — first upgrade costs ¢ ${cheapest}`, sub: `You have ¢ ${fmtCoins(s.state.coins)}` };
       }
+    }
+    if (s.state.eggsOpened === 0 && s.state.tutorial.firstPurchase) {
+      return s.state.coins >= 300 || s.state.tickets.meadow > 0
+        ? { text: 'Hatch your first pet!', sub: 'Pets follow you and boost every catch · Pet Eggs hut or 🛒 Shop' }
+        : { text: `Save ¢ 300 for a Meadow Egg`, sub: `Pets boost your catches · you have ¢ ${fmtCoins(s.state.coins)}` };
     }
     for (const pool of ['reed', 'moon'] as const) {
       if (!s.isPoolUnlocked(pool)) {
@@ -1012,6 +1123,7 @@ export class GameApp {
         }
       } else if (a.id === 'stand' && !busy) addLabel(a.id, a.pos, near === 'stand' ? 'Fish Stand — press E / Sell' : 'Fish Stand', near === 'stand' ? undefined : 'Sell catches', near === 'stand' ? 'prompt' : '');
       else if (a.id === 'workshop') addLabel(a.id, a.pos, near === 'workshop' ? 'Workshop — press E / Open' : 'Workshop', near === 'workshop' ? undefined : 'Rods & upgrades', near === 'workshop' ? 'prompt' : '');
+      else if (a.id === 'hatchery') addLabel(a.id, a.pos, near === 'hatchery' ? 'Pet Eggs — press E' : 'Pet Eggs', near === 'hatchery' ? undefined : 'Hatch pets', near === 'hatchery' ? 'prompt' : 'pet', 30);
       else if (a.id === 'plinth' && s.state.bestCatch) {
         const b = s.state.bestCatch;
         addLabel(a.id, a.pos, `Best catch: ${SPECIES_BY_ID[b.speciesId].name}`, `${b.weight.toFixed(1)} kg${b.modifier !== 'normal' ? ` · ${b.modifier}` : ''}`, '', 26);
@@ -1053,7 +1165,13 @@ export class GameApp {
       save,
       action,
       cancel: this.fishing.canCancel,
-      interact: !busy && near ? (near === 'stand' ? 'Sell fish (E)' : 'Workshop (E)') : null,
+      interact: !busy && near ? (near === 'stand' ? 'Sell fish (E)' : near === 'hatchery' ? 'Pet eggs (E)' : 'Shop (E)') : null,
+      level: s.state.level,
+      xp: s.state.xp,
+      xpNeed: s.xpNeeded,
+      streak: s.state.streak >= 2 ? { count: s.state.streak, factor: streakFactorOf(s.state.streak) } : null,
+      boosts: BOOSTS.filter((b) => s.boostLeft(b.id) > 0).map((b) => ({ id: b.id, name: b.name, left: s.boostLeft(b.id) })),
+      dailyReady: s.dailyInfo(dayKey(new Date())).available,
       lures,
       cast,
       reel: reelView,

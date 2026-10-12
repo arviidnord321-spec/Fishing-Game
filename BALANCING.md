@@ -118,3 +118,34 @@ still missing at cutoff: observatory-whale×1
 
 Do not tune progression around ads. The only ad hook (Full Launch build) is an optional cosmetic
 bobber that can also be bought for 300 earned coins.
+
+
+## Meta progression (round 3)
+
+All values live in `src/data/pets.ts` and `src/logic/meta.ts`.
+
+| System | Values |
+| --- | --- |
+| Meadow Egg ¢300, any level | Common 60 · Uncommon 28 · Rare 10 · Epic 2 |
+| Reef Egg ¢2,500, level 5+ | Common 50 · Uncommon 30 · Rare 15 · Epic 4.5 · Legendary 0.5 |
+| Star Egg ¢15,000, level 12+ | Uncommon 45 · Rare 35 · Epic 17 · Legendary 3 |
+| Pity | 10th open without a rare-or-better draws only from rare+ tiers (same relative odds) |
+| Pet bonus | base × (1 + 0.25 × (level − 1)), level 1–5; equipped bonuses of the same type add |
+| Duplicate at max level | 40% of the egg price refunded |
+| Pet slots | 1, then ¢1,500, then ¢8,000 |
+| Boosts | 5 min of active play; cost = base + per-level × (level − 1): Coin Rush 200+60, Lucky Charm 150+50, Quick Reel 120+40 |
+| Hot streak | ×1.1 at 3, ×1.2 at 5, ×1.3 at 10 consecutive landed fish; an escape resets it |
+| Catch bonus | (1 + pet coins) × (Coin Rush ? 2 : 1) × streak, locked at landing and multiplied into the sale formula |
+| Luck | resolver luck × (1 + pet luck) × (Lucky Charm ? 2 : 1) |
+| XP to next level | floor(40 + 30 × (level − 1)^1.35); catch XP Common 5 / Uncommon 10 / Rare 25 / Epic 60 / Legendary 150, +25 for a new species, × (1 + pet XP) |
+| Level reward | ¢40 × level; Meadow ticket every 3rd level; Reef ticket every 10th |
+| Daily calendar | ¢100 · 1 Meadow ticket · ¢250 · 2 Meadow tickets · ¢600 · 1 Reef ticket · ¢1,500 + Reef ticket; coins × (1 + 0.1 × (level − 1)) |
+| Daily quests | one catch quest plus two others; rewards ¢(120 + 60 × level) × (1, 1.5, 2) + XP, and the third gives a Meadow ticket |
+
+Unit tests verify the published egg odds over 40,000 rolls per egg (within ±1.5 percentage
+points) and the pity guarantee.
+
+**Pacing note:** pets and boosts speed up coin income, so the earlier milestone simulation
+(which models no pets) is now an upper bound on time to each rod and pool. Rod, pool and
+upgrade prices were deliberately left unchanged so existing saves keep their meaning.
+Re-tune after real playtest data.
