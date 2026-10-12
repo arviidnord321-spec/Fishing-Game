@@ -153,6 +153,15 @@ export class GameApp {
             '+20000¢': () => this.store.debugAddCoins(20000),
             'Rift soon': () => this.events.debugTriggerSoon(this.store.state.worldClock),
             'Skip 60s': () => this.store.tickClock(60),
+            'Giant reveal': () => {
+              this.fishing.pool = 'meadow';
+              this.bobberPos.set(0, -0.2, 5.5);
+              this.startReveal('rift-leviathan', 'giant', 850, 'legendary');
+            },
+            'End reveal': () => {
+              this.cam.revealTarget = null;
+              if (this.reveal) this.reveal.leaving = 0.001;
+            },
           }
         : undefined,
     });

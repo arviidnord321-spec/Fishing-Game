@@ -32,6 +32,7 @@ Other commands:
 | `npm run build:full` | `dist-crazygames-full/` | Adds the optional rewarded cosmetic. Use **only** after CrazyGames invites the game to Full Launch. |
 | `npm run build:qa` | `dist-qa/` | Release code plus the debug overlay and cheat buttons (coins, trigger Rift Bloom, skip time). For testing only; never ship it. |
 | `npm run simulate` | console | Seeded economy simulation (see `BALANCING.md`). |
+| `npm run package:basic` | `rift-fishing-crazygames-basic.zip` | Basic build zipped for upload (root `index.html`, relative assets). |
 | `npm run typecheck` | — | `tsc --noEmit` |
 
 All builds use relative asset paths (`base: './'`), so they work from any subdirectory.

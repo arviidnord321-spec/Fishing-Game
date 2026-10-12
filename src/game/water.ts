@@ -51,7 +51,9 @@ void main() {
   vec2 cell = floor(vUv * 40.0);
   float h = hash(cell);
   float tw = sin(uTime * 2.0 + h * 40.0);
-  float sp = step(0.985, h) * smoothstep(0.7, 1.0, tw);
+  // small round glints, not whole grid cells
+  float dotShape = 1.0 - smoothstep(0.08, 0.18, length(fract(vUv * 40.0) - 0.5));
+  float sp = step(0.985, h) * smoothstep(0.7, 1.0, tw) * dotShape;
   col += sp * 0.6;
   // bobber ripples
   col += (ripple(uRipple0, vUv) + ripple(uRipple1, vUv)) * 0.65;

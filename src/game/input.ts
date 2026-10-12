@@ -135,7 +135,11 @@ export class InputManager {
     if (e.button === 2 || e.button === 1) {
       this.orbitPointer = e.pointerId;
       this.lastOrbit = { x: e.clientX, y: e.clientY };
-      this.canvas.setPointerCapture?.(e.pointerId);
+      try {
+        this.canvas.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* best-effort */
+      }
     } else if (e.button === 0 && this.enabled) {
       this.pointerAction = e.pointerId;
       this.setButton('action', true);

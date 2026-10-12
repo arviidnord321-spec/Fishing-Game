@@ -161,7 +161,11 @@ export class UI {
     const act = E.action;
     const down = (e: PointerEvent) => {
       e.preventDefault();
-      act.setPointerCapture?.(e.pointerId);
+      try {
+        act.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* capture is best-effort; never lose the press */
+      }
       this.actionDown = true;
       act.classList.add('pressed');
       d.onAction(true);
@@ -306,7 +310,7 @@ export class UI {
     // touch joystick
     show(E.joyBase, v.touch && v.joy.active);
     show(E.joyKnob, v.touch && v.joy.active);
-    show(E.joyHint, v.touch && !v.joy.active && !this.d.store.state.tutorial.firstSale);
+    show(E.joyHint, v.touch && !v.joy.active && !v.reel && !v.cast && !this.d.store.state.tutorial.firstSale);
     if (v.joy.active) {
       const rr = this.root.getBoundingClientRect();
       E.joyBase.style.left = `${v.joy.cx - rr.left}px`;
@@ -783,7 +787,8 @@ export class UI {
         else if (owned) btns.append(h('button', { class: 'btn small cyan', onclick: () => s.equipBobber(b.id) }, 'Equip'));
         else {
           btns.append(h('button', { class: 'btn small primary', disabled: s.state.coins < b.cost, onclick: (e: Event) => { (e.currentTarget as HTMLButtonElement).disabled = true; const r = s.buyBobber(b.id); if (!r.ok) this.toast(r.reason, 'bad'); } }, s.state.coins < b.cost ? `Not enough coins (¢ ${b.cost})` : `Buy ¢ ${b.cost}`));
-          if (this.d.adsEnabled) {
+          // Compiled out of standalone/Basic builds; Full builds still require platform consent at runtime.
+          if (__PLATFORM__ === 'crazygames-full' && this.d.adsEnabled) {
             btns.append(
               h('button', {
                 class: 'btn small cyan',

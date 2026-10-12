@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "simulate": "vite-node scripts/simulate-economy.ts",
-    "build:qa": "vite build --mode qa --outDir dist-qa"
+    "build:qa": "vite build --mode qa --outDir dist-qa",
+    "package:basic": "npm run build:basic && cd dist-crazygames-basic && zip -qr ../rift-fishing-crazygames-basic.zip . && cd .. && echo rift-fishing-crazygames-basic.zip"
   },
   "dependencies": {
     "three": "0.186.1"

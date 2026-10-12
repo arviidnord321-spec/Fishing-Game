@@ -22,7 +22,7 @@ uniform float uStar;
 void main() {
   vec2 p = gl_PointCoord - 0.5;
   float d = length(p);
-  float a = smoothstep(0.5, 0.25, d);
+  float a = 1.0 - smoothstep(0.25, 0.5, d);
   gl_FragColor = vec4(vColor, a * vAlpha);
   #include <colorspace_fragment>
 }`;

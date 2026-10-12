@@ -92,6 +92,9 @@ export class CameraRig {
       const c2 = world.cameraClearance(center, rp, 0.35);
       if (c2 < 1) rp.sub(center).multiplyScalar(Math.max(0.35, c2 - 0.05)).add(center);
       const look = new THREE.Vector3().copy(center).add(new THREE.Vector3(0, radius * 0.15, 0));
+      // Aim a little right of the catch so it sits left of center, clear of the result card.
+      const right = new THREE.Vector3().subVectors(center, rp).setY(0).normalize().cross(UP);
+      look.addScaledVector(right, radius * 0.45 + 0.35);
       const k = smooth(this.revealW);
       this.desiredPos.lerp(rp, k);
       this.desiredLook.lerp(look, k);
