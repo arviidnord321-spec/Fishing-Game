@@ -9,8 +9,9 @@ minutes a **Rift Bloom** opens a giant portal pool in the south clearing.
 
 - **Engine:** TypeScript + Three.js (WebGL), HTML/CSS UI, no physics engine.
 - **Assets:** everything is generated at runtime. Models are procedural primitives, textures are
-  canvas-drawn, sounds are synthesized with Web Audio, and text uses system fonts. No asset
-  files are shipped (see `ASSET_LICENSES.md`).
+  canvas-drawn, sounds are synthesized with Web Audio, and UI icons are inline SVG drawn for this
+  project. The only third-party asset is the Fredoka UI font (SIL OFL 1.1, two small latin
+  subsets inlined into the CSS; see `ASSET_LICENSES.md`).
 - **Platforms:** standalone static hosting, plus CrazyGames *Basic* and *Full* build modes behind a
   typed platform adapter (see `PLATFORM_NOTES.md`).
 

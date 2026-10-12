@@ -32,7 +32,9 @@ export default defineConfig(({ mode }) => {
     plugins: [injectSdk(platform)],
     build: {
       target: 'es2020',
-      assetsInlineLimit: 0,
+      // Only the two small UI font files are inlined (keeps the build to 3 files and the
+      // single-file export self-contained); nothing else is an asset.
+      assetsInlineLimit: (file: string) => file.endsWith('.woff2'),
       chunkSizeWarningLimit: 900,
       sourcemap: false,
     },

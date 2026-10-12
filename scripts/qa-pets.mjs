@@ -34,7 +34,7 @@ await shot('02-hud-quests');
 
 // Money for testing, then the shop from the HUD button.
 await page.locator('.debug button', { hasText: '+20000¢' }).click();
-await page.locator('.icon-btn.shop').click();
+await page.locator('.menu-btn[aria-label="Shop"]').click();
 await page.waitForTimeout(400);
 await shot('03-shop-eggs');
 // Open the Meadow egg a few times
@@ -62,7 +62,7 @@ await page.waitForTimeout(300);
 await shot('06-shop-boosts');
 await page.click('.panel .close');
 // Pets panel: buy a slot, equip best
-await page.locator('.icon-btn', { hasText: '🐾' }).click();
+await page.locator('.menu-btn[aria-label="Pets"]').click();
 await page.waitForTimeout(400);
 await page.locator('.pet-summary .btn.primary').click().catch(() => {});
 await page.waitForTimeout(200);

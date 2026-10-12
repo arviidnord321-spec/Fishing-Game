@@ -6,6 +6,8 @@ import { blobShadow, flat, PALETTE, signTexture } from './materials';
 import { bakeStatic } from './bake';
 import { applyWind, GrassField, terrainMaterial, WIND } from './nature';
 import type { QualityLevel } from './quality';
+import { Clouds, shoreFoam } from './scenery';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createSkyMaterial, createWaterMaterial, waterGeometry, type WaterMaterial } from './water';
 
 export type Collider =
@@ -76,6 +78,8 @@ export class World {
   private flowerMesh: THREE.InstancedMesh | null = null;
   private level: QualityLevel | null = null;
   private time = 0;
+  private clouds = new Clouds();
+  private foam!: THREE.Mesh;
 
   constructor() {
     this.scene.background = null;
@@ -92,6 +96,10 @@ export class World {
 
     this.buildSea();
     this.buildIsland();
+    this.scene.add(this.clouds.mesh);
+    const outline = this.islandShape().getPoints(36).map((v) => new THREE.Vector2(v.x, -v.y));
+    this.foam = shoreFoam(outline, -1.56, 0.35, 2.4);
+    this.scene.add(this.foam);
     for (const p of POOLS) this.buildPool(p.id, p.x, p.z, p.radius);
     this.buildPaths();
     this.buildStand();
@@ -156,40 +164,63 @@ export class World {
   }
 
   private buildPaths(): void {
-    const mat = new THREE.MeshLambertMaterial({ color: PALETTE.sand, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
-    const width = 2.8;
-    for (const path of PATHS) {
-      const pts = path.map(([x, z]) => new THREE.Vector3(x, 0, z));
-      const curve = new THREE.CatmullRomCurve3(pts);
-      const samples = curve.getSpacedPoints(Math.max(8, Math.round(curve.getLength() * 1.5)));
-      const pos: number[] = [];
-      const idx: number[] = [];
-      for (let i = 0; i < samples.length; i++) {
-        const a = samples[Math.max(0, i - 1)];
-        const b = samples[Math.min(samples.length - 1, i + 1)];
-        const dir = new THREE.Vector3().subVectors(b, a).normalize();
-        const side = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(width / 2);
-        const p = samples[i];
-        pos.push(p.x + side.x, 0.015, p.z + side.z, p.x - side.x, 0.015, p.z - side.z);
-        if (i > 0) {
-          const k = i * 2;
-          idx.push(k - 2, k - 1, k, k - 1, k + 1, k);
+    // All paths are merged into one sand mesh plus one thin darker edging mesh (two draw
+    // calls). The edging is only a band along each side, so path pixels are not drawn twice.
+    const strips = (inner: number, outer: number, y: number): THREE.BufferGeometry[] => {
+      const out: THREE.BufferGeometry[] = [];
+      for (const path of PATHS) {
+        const pts = path.map(([x, z]) => new THREE.Vector3(x, 0, z));
+        const curve = new THREE.CatmullRomCurve3(pts);
+        const samples = curve.getSpacedPoints(Math.max(8, Math.round(curve.getLength() * 1.5)));
+        // one band per side: [-outer, -inner] and [inner, outer]; inner 0 = a single full strip
+        const bands: [number, number][] = inner > 0 ? [[inner, outer], [-outer, -inner]] : [[-outer, outer]];
+        for (const [a0, a1] of bands) {
+          const pos: number[] = [];
+          const idx: number[] = [];
+          for (let i = 0; i < samples.length; i++) {
+            const a = samples[Math.max(0, i - 1)];
+            const b = samples[Math.min(samples.length - 1, i + 1)];
+            const dir = new THREE.Vector3().subVectors(b, a).normalize();
+            const sx = -dir.z;
+            const sz = dir.x;
+            const p = samples[i];
+            pos.push(p.x + sx * a1, y, p.z + sz * a1, p.x + sx * a0, y, p.z + sz * a0);
+            if (i > 0) {
+              const k = i * 2;
+              // counter-clockwise seen from above, so the strip faces up
+              idx.push(k - 2, k, k - 1, k - 1, k, k + 1);
+            }
+          }
+          const g = new THREE.BufferGeometry();
+          g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+          g.setIndex(idx);
+          out.push(g.toNonIndexed());
+          g.dispose();
+        }
+        // round caps (a ring for the edging)
+        for (const end of [samples[0], samples[samples.length - 1]]) {
+          const cap = (inner > 0 ? new THREE.RingGeometry(inner, outer, 20) : new THREE.CircleGeometry(outer, 20)).rotateX(-Math.PI / 2).translate(end.x, y - 0.001, end.z);
+          cap.deleteAttribute('normal');
+          cap.deleteAttribute('uv');
+          out.push(cap.toNonIndexed());
+          cap.dispose();
         }
       }
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      g.setIndex(idx);
-      g.computeVertexNormals();
-      const m = new THREE.Mesh(g, mat);
-      m.renderOrder = 0;
+      return out;
+    };
+    const build = (inner: number, outer: number, y: number, color: string, order: number) => {
+      const parts = strips(inner, outer, y);
+      const g = mergeGeometries(parts)!;
+      for (const p of parts) p.dispose();
+      const normals = new Float32Array(g.attributes.position.count * 3);
+      for (let i = 0; i < normals.length; i += 3) normals[i + 1] = 1;
+      g.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+      const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 - order, polygonOffsetUnits: -1 - order }));
+      m.renderOrder = order;
       this.scene.add(m);
-      // round caps
-      for (const end of [samples[0], samples[samples.length - 1]]) {
-        const cap = new THREE.Mesh(new THREE.CircleGeometry(width / 2, 16).rotateX(-Math.PI / 2), mat);
-        cap.position.set(end.x, 0.014, end.z);
-        this.scene.add(cap);
-      }
-    }
+    };
+    build(1.32, 1.68, 0.012, PALETTE.sandDark, 0);
+    build(0, 1.4, 0.016, PALETTE.sand, 1);
   }
 
   // ---------------------------------------------------------------- pools
@@ -286,6 +317,8 @@ export class World {
   setQuality(level: QualityLevel): void {
     this.level = level;
     this.grass.setCount(level.grass);
+    // shore foam is a wide transparent band: medium/high only (fill-rate on weak GPUs)
+    this.foam.visible = level.extras;
     if (this.flowerMesh) this.flowerMesh.count = Math.min(level.flowers, this.flowerMesh.instanceMatrix.count);
     WIND.uWind.value = level.wind ? 1 : 0;
     // low preset: plain ground color instead of the painted terrain texture
@@ -706,6 +739,10 @@ export class World {
     this.time += dt;
     WIND.uTime.value = this.time;
     const n = nightBlend;
+    this.clouds.update(dt, n);
+    const fs = 1 + Math.sin(this.time * 1.1) * 0.006;
+    this.foam.scale.set(fs, 1, fs);
+    (this.foam.material as THREE.MeshBasicMaterial).opacity = 1 - 0.45 * n;
     const u = this.skyMat.uniforms;
     (u.uTop.value as THREE.Color).copy(PALETTE.daySky).lerp(PALETTE.nightSky, n);
     (u.uHorizon.value as THREE.Color).copy(PALETTE.dayHorizon).lerp(PALETTE.nightHorizon, n);
@@ -758,6 +795,12 @@ export class World {
     this.hatcheryEgg.position.y = 1.15 + Math.sin(this.time * 2) * 0.06;
     this.hatcheryEgg.rotation.y += dt * 0.5;
     this.hatcheryEgg.rotation.z = Math.sin(this.time * 7) * (Math.sin(this.time * 0.9) > 0.85 ? 0.12 : 0);
+  }
+
+  /** QA-only performance experiments. */
+  debugHide(what: 'clouds' | 'foam'): void {
+    if (what === 'clouds') this.clouds.mesh.visible = false;
+    else this.foam.visible = false;
   }
 
   /** Splash rings on a pool's water surface at a world point. */

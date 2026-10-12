@@ -9,6 +9,7 @@ import type { GameStore } from '../logic/store';
 import type { EggId } from '../data/pets';
 import type { HatchResult } from '../logic/store';
 import { esc, fmtCoins, fmtCompact, fmtTime, h, setHtml, setText, show } from './dom';
+import { icon, iconEl } from './icons';
 import { boostsTab, dailyBody, eggsTab, hatchOpen, petsBody, questViews, type MetaDeps, type QuestView } from './metaUi';
 
 export interface WorldLabel {
@@ -135,7 +136,7 @@ export class UI {
   private floatsEl!: HTMLElement;
   private questsKey = '';
   private chipsKey = '';
-  private questsCollapsed = typeof matchMedia === 'function' && matchMedia('(max-height: 520px)').matches;
+  private questsCollapsed = typeof matchMedia === 'function' && matchMedia('(max-height: 520px), (max-width: 600px)').matches;
   private hintPlaced = 0;
   private rootRect: DOMRect = new DOMRect();
 
@@ -166,40 +167,56 @@ export class UI {
     E.vignette = h('div', { class: 'vignette-event' });
     E.coins = h('span');
     E.bagCount = h('span');
-    E.coinPill = h('div', { class: 'stat-row coin', 'aria-label': 'Coins' }, h('span', { class: 'ico coin-ico' }, '¢'), E.coins);
+    E.coins.className = 'cur-val';
+    E.bagCount.className = 'cur-val';
+    E.coinPill = h(
+      'div',
+      { class: 'cur coin', 'aria-label': 'Coins' },
+      iconEl('coin', 'cur-ico'),
+      E.coins,
+      h('button', { class: 'cur-plus interactive', 'aria-label': 'Open shop', title: 'Shop', onclick: () => this.toggle('shop'), html: icon('plus') }),
+    );
     E.bagFill = h('i');
     E.bagPill = h(
       'button',
-      { class: 'stat-row bag interactive', 'aria-label': 'Open bag', onclick: () => this.toggle('bag') },
-      h('span', { class: 'ico bag-ico' }, '◧'),
+      { class: 'cur bag interactive', 'aria-label': 'Open bag', onclick: () => this.toggle('bag') },
+      iconEl('bag', 'cur-ico'),
       E.bagCount,
       h('span', { class: 'bagbar', 'aria-hidden': 'true' }, E.bagFill),
     );
     E.save = h('div', { class: 'pill save-chip' });
     E.levelNum = h('b');
     E.xpFill = h('i');
-    E.levelRow = h('div', { class: 'level-row', 'aria-label': 'Player level' }, h('span', { class: 'lvl-badge' }, 'Lv ', E.levelNum), h('span', { class: 'xpbar', 'aria-hidden': 'true' }, E.xpFill));
+    E.xpText = h('span', { class: 'xp-txt' });
+    E.levelRow = h(
+      'div',
+      { class: 'level-row', 'aria-label': 'Player level' },
+      h('span', { class: 'lvl-badge' }, iconEl('star', 'lvl-star'), E.levelNum),
+      h('span', { class: 'xpbar', 'aria-hidden': 'true' }, E.xpFill, E.xpText),
+    );
     E.quests = h('div', { class: 'quest-card interactive' });
     E.chips = h('div', { class: 'chip-row' });
-    const topLeft = h('div', { class: 'top-left' }, h('div', { class: 'status-card' }, E.levelRow, E.coinPill, E.bagPill), E.chips, E.quests, E.save);
+    const topLeft = h('div', { class: 'top-left' }, h('div', { class: 'cur-stack' }, E.levelRow, E.coinPill, E.bagPill), E.chips, E.quests, E.save);
 
     E.goal = h('div', { class: 'goal', role: 'status', 'aria-live': 'polite' });
     const topCenter = h('div', { class: 'top-center' }, E.goal);
 
     E.phaseLbl = h('span');
-    E.phaseIco = h('span', { class: 'ico' }, '☀');
+    E.phaseIco = h('span', { class: 'ico', html: icon('sun') });
     E.phase = h('div', { class: 'pill phase' }, E.phaseIco, E.phaseLbl);
-    E.pauseBtn = h('button', { class: 'icon-btn', 'aria-label': 'Pause and settings', title: 'Pause (P)', onclick: () => this.toggle('pause') }, 'II');
+    E.pauseBtn = h('button', { class: 'icon-btn pause', 'aria-label': 'Pause and settings', title: 'Pause (P)', onclick: () => this.toggle('pause'), html: icon('gear') });
     E.fps = h('div', { class: 'pill fps-chip', 'aria-label': 'Frame rate' });
-    E.gift = h('button', { class: 'icon-btn gift', 'aria-label': 'Daily reward', title: 'Daily reward', onclick: () => this.toggle('daily') }, '🎁', h('span', { class: 'badge dot' }, '!'));
+    E.gift = h('button', { class: 'icon-btn gift', 'aria-label': 'Daily reward', title: 'Daily reward', onclick: () => this.toggle('daily') }, iconEl('gift'), h('span', { class: 'badge dot' }, '!'));
     const topRight = h('div', { class: 'top-right' }, E.fps, E.phase, E.gift, E.pauseBtn);
 
-    E.bagBtn = h('button', { class: 'icon-btn', 'aria-label': 'Bag', title: 'Bag (B)', onclick: () => this.toggle('bag') }, '◧', h('span', { class: 'lbl' }, 'BAG'));
-    E.journalBtn = h('button', { class: 'icon-btn', 'aria-label': 'Journal', title: 'Journal (J)', onclick: () => this.toggle('journal') }, '✎', h('span', { class: 'lbl' }, 'BOOK'));
+    const menuBtn = (label: string, ico: string, cls: string, aria: string, title: string, p: PanelName) =>
+      h('button', { class: `menu-btn ${cls}`, 'aria-label': aria, title, onclick: () => this.toggle(p) }, iconEl(ico, 'mi'), h('span', { class: 'lbl' }, label));
+    E.bagBtn = menuBtn('Bag', 'bag', 'm-bag', 'Bag', 'Bag (B)', 'bag');
+    E.journalBtn = menuBtn('Book', 'book', 'm-book', 'Journal', 'Journal (J)', 'journal');
     E.controlsHint = h('div', { class: 'controls-hint' });
-    E.shopBtn = h('button', { class: 'icon-btn shop', 'aria-label': 'Shop', title: 'Shop: eggs, boosts, rods, upgrades', onclick: () => this.toggle('shop') }, '🛒', h('span', { class: 'lbl' }, 'SHOP'));
-    E.petsBtn = h('button', { class: 'icon-btn', 'aria-label': 'Pets', title: 'Pets', onclick: () => this.toggle('pets') }, '🐾', h('span', { class: 'lbl' }, 'PETS'));
-    const bottomLeft = h('div', { class: 'bottom-left' }, E.bagBtn, E.journalBtn, E.shopBtn, E.petsBtn, E.controlsHint);
+    E.shopBtn = menuBtn('Shop', 'shop', 'm-shop', 'Shop', 'Shop: eggs, boosts, rods, upgrades', 'shop');
+    E.petsBtn = menuBtn('Pets', 'paw', 'm-pets', 'Pets', 'Pets', 'pets');
+    const bottomLeft = h('div', { class: 'bottom-left' }, h('div', { class: 'menu-row' }, E.bagBtn, E.journalBtn, E.shopBtn, E.petsBtn), E.controlsHint);
     this.popupsEl = h('div', { class: 'popups', 'aria-live': 'polite' });
     this.floatsEl = h('div', { class: 'floats', 'aria-hidden': 'true' });
 
@@ -251,18 +268,19 @@ export class UI {
     E.reelFish = h('div', { class: 'fish', html: FISH_SVG });
     E.reelProgress = h('div');
     E.reelNotches = h('div', { class: 'integrity', 'aria-label': 'Line integrity' }, h('i', { class: 'notch' }), h('i', { class: 'notch' }), h('i', { class: 'notch' }));
+    E.reelPct = h('span', { class: 'reel-pct' });
     E.reelTitle = h('span');
     E.reel = h(
       'div',
       { class: 'reel', role: 'group', 'aria-label': 'Reeling' },
       h('div', { class: 'title' }, E.reelTitle, E.reelNotches),
       h('div', { class: 'track' }, E.reelWindow, E.reelFish),
-      h('div', { class: 'progress', role: 'progressbar', 'aria-label': 'Catch progress' }, E.reelProgress),
+      h('div', { class: 'progress', role: 'progressbar', 'aria-label': 'Catch progress' }, E.reelProgress, E.reelPct),
       h('div', { class: 'help' }, 'Hold to move right. Release to move left. Keep the fish inside the window.'),
     );
 
     this.toastsEl = h('div', { class: 'toasts', 'aria-live': 'polite' });
-    E.fishOn = h('div', { class: 'fish-on' }, h('span', { class: 'ico' }, '❗'), 'FISH ON!  TAP!');
+    E.fishOn = h('div', { class: 'fish-on' }, h('span', { class: 'bang' }, '!'), h('span', {}, 'FISH ON!'), h('small', {}, 'TAP NOW'));
     E.hint = h('div', { class: 'hint-bubble interactive' });
     E.joyBase = h('div', { class: 'joy-base' });
     E.joyKnob = h('div', { class: 'joy-knob' });
@@ -292,6 +310,7 @@ export class UI {
     const xpPct = `${Math.min(100, (v.xp / Math.max(1, v.xpNeed)) * 100).toFixed(1)}%`;
     if (E.xpFill.style.width !== xpPct) E.xpFill.style.width = xpPct;
     E.levelRow.title = `${v.xp} / ${v.xpNeed} XP to level ${v.level + 1}`;
+    setText(E.xpText, `${fmtCompact(v.xp)} / ${fmtCompact(v.xpNeed)} XP`);
     E.gift.classList.toggle('ready', v.dailyReady);
     this.renderChips(v);
     this.renderQuests();
@@ -303,7 +322,8 @@ export class UI {
     setHtml(E.goal, `${esc(v.goal.text)}${v.goal.sub ? `<small>${esc(v.goal.sub)}</small>` : ''}`);
     E.goal.classList.toggle('event', !!v.goal.event);
     setText(E.phaseLbl, v.phase.label);
-    setText(E.phaseIco, v.phase.night ? '☾' : '☀');
+    if (E.phase.title !== v.phase.label) E.phase.title = v.phase.label;
+    setHtml(E.phaseIco, icon(v.phase.night ? 'moon' : 'sun'));
     E.phase.classList.toggle('night', v.phase.night);
     setText(E.save, v.save.text);
     E.save.classList.toggle('bad', v.save.bad);
@@ -348,7 +368,9 @@ export class UI {
       E.reelFish.style.transform = `translate(-50%, -50%) scale(${1 + r.flare * 0.25})`;
       E.reelProgress.style.width = `${r.progress * 100}%`;
       E.reelProgress.parentElement!.setAttribute('aria-valuenow', String(Math.round(r.progress * 100)));
-      setText(E.reelTitle, r.inside ? `Reeling… ${Math.round(r.progress * 100)}%` : 'Line slack! Track the fish');
+      setText(E.reelTitle, r.inside ? 'Reeling!' : 'Line slack! Track the fish');
+      setText(E.reelPct, `${Math.round(r.progress * 100)}%`);
+      E.reel.classList.toggle('slack', !r.inside);
       const notches = E.reelNotches.children;
       for (let i = 0; i < 3; i++) {
         notches[i].className = `notch${i >= r.notches ? ' off' : r.notches === 1 ? ' warn' : ''}`;
@@ -356,6 +378,7 @@ export class UI {
     } else show(E.reel, false);
 
     show(E.fishOn, v.fishOn);
+    this.root.classList.toggle('fishing', !!(v.reel || v.cast || v.fishOn));
     if (v.hint) {
       const changed = this.hintText !== v.hint;
       this.hintText = v.hint;
@@ -421,8 +444,8 @@ export class UI {
     this.chipsKey = key;
     const E = this.el;
     E.chips.innerHTML = '';
-    if (v.streak) E.chips.append(h('span', { class: 'chip-hud streak', title: 'Hot streak: land fish in a row without losing one' }, `🔥 ${v.streak.count} · ×${v.streak.factor.toFixed(1)}`));
-    for (const b of v.boosts) E.chips.append(h('span', { class: `chip-hud boost b-${b.id}`, title: b.name }, `${b.id === 'coinRush' ? '¢×2' : b.id === 'luckyCharm' ? '☘×2' : '⟳+40%'} ${fmtTime(b.left)}`));
+    if (v.streak) E.chips.append(h('span', { class: 'chip-hud streak', title: 'Hot streak: land fish in a row without losing one' }, iconEl('fire', 'ci'), `${v.streak.count} · ×${v.streak.factor.toFixed(1)}`));
+    for (const b of v.boosts) E.chips.append(h('span', { class: `chip-hud boost b-${b.id}`, title: b.name }, iconEl(b.id === 'coinRush' ? 'coin' : b.id === 'luckyCharm' ? 'clover' : 'reel', 'ci'), `${b.id === 'quickReel' ? '+40%' : '×2'} ${fmtTime(b.left)}`));
     show(E.chips, E.chips.childElementCount > 0);
   }
 
@@ -441,7 +464,7 @@ export class UI {
     const doneCount = qs.filter((q) => q.claimed).length;
     const ready = qs.filter((q) => q.done && !q.claimed).length;
     E.quests.append(
-      h('button', { class: 'quest-head', 'aria-expanded': String(!this.questsCollapsed), onclick: () => { this.questsCollapsed = !this.questsCollapsed; this.questsKey = ''; } }, h('span', {}, `Daily quests ${doneCount}/${qs.length}`), ready ? h('span', { class: 'badge-ready' }, `${ready} ready`) : null, h('span', { class: 'caret' }, this.questsCollapsed ? '▸' : '▾')),
+      h('button', { class: 'quest-head', 'aria-expanded': String(!this.questsCollapsed), onclick: () => { this.questsCollapsed = !this.questsCollapsed; this.questsKey = ''; } }, iconEl('quest', 'qi'), h('span', {}, `Quests ${doneCount}/${qs.length}`), ready ? h('span', { class: 'badge-ready' }, `${ready} ready`) : null, h('span', { class: 'caret' }, this.questsCollapsed ? '▸' : '▾')),
     );
     if (this.questsCollapsed) return;
     for (const q of qs) E.quests.append(this.questRow(q));
@@ -460,7 +483,8 @@ export class UI {
   // ------------------------------------------------------------------ celebration popups
   /** Non-blocking celebration banner (never pauses play). */
   celebrate(title: string, sub: string, kind: 'level' | 'quest' | 'streak' | 'reward' | 'pet' = 'reward', ms = 3200): void {
-    const el = h('div', { class: `celebrate c-${kind}`, role: 'status' }, h('div', { class: 'c-title' }, title), sub ? h('div', { class: 'c-sub' }, sub) : null);
+    const ico = { level: 'star', quest: 'quest', streak: 'fire', reward: 'gift', pet: 'paw' }[kind];
+    const el = h('div', { class: `celebrate c-${kind}`, role: 'status' }, iconEl(ico, 'c-ico'), h('div', { class: 'c-text' }, h('div', { class: 'c-title' }, title), sub ? h('div', { class: 'c-sub' }, sub) : null));
     if (!this.root.classList.contains('reduced-motion')) {
       const conf = h('div', { class: 'confetti', 'aria-hidden': 'true' });
       for (let i = 0; i < 18; i++) {
@@ -656,10 +680,10 @@ export class UI {
         panel = this.pausePanel();
         break;
       case 'pets':
-        panel = this.shell('Pets', petsBody(this.metaDeps()), h('footer', {}, h('span', { class: 'total' }, `${Object.keys(this.d.store.state.pets).length} pets collected`), h('button', { class: 'btn primary', onclick: () => this.open('shop', 'eggs') }, 'Get more pets')));
+        panel = this.shell('Pets', petsBody(this.metaDeps()), h('footer', {}, h('span', { class: 'total' }, `${Object.keys(this.d.store.state.pets).length} pets collected`), h('button', { class: 'btn primary', onclick: () => this.open('shop', 'eggs') }, 'Get more pets')), undefined, 'paw');
         break;
       case 'daily':
-        panel = this.shell('Daily reward', dailyBody(this.metaDeps(), this.d.today(), () => this.d.onClaimDaily()));
+        panel = this.shell('Daily reward', dailyBody(this.metaDeps(), this.d.today(), () => this.d.onClaimDaily()), undefined, undefined, 'gift');
         break;
     }
     this.overlay.append(panel);
@@ -669,11 +693,11 @@ export class UI {
     if (rods) rods.scrollLeft = rodScroll;
   }
 
-  private shell(title: string, body: HTMLElement, footer?: HTMLElement, tabs?: HTMLElement): HTMLElement {
+  private shell(title: string, body: HTMLElement, footer?: HTMLElement, tabs?: HTMLElement, ico = 'star'): HTMLElement {
     return h(
       'div',
-      { class: 'panel', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
-      h('header', {}, h('h2', {}, title), h('button', { class: 'close', 'aria-label': 'Close', onclick: () => this.close() }, '✕')),
+      { class: `panel p-${ico}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+      h('header', {}, h('h2', {}, iconEl(ico, 'hi'), h('span', {}, title)), h('button', { class: 'close', 'aria-label': 'Close', onclick: () => this.close(), html: icon('close') })),
       tabs ?? null,
       h('div', { class: 'body' }, body),
       footer ?? null,
@@ -743,7 +767,7 @@ export class UI {
     } else {
       footer = h('footer', {}, h('span', { class: 'total' }, `Bag value ¢ ${fmtCoins(s.quoteSale(s.state.inventory.map((c) => c.id)).coins)}`), h('span', { class: 'cmp' }, 'Sell at the Fish Stand'));
     }
-    return this.shell(atStand ? 'Fish Stand' : 'Bag', body, footer);
+    return this.shell(atStand ? 'Fish Stand' : 'Bag', body, footer, undefined, atStand ? 'coin' : 'bag');
   }
 
   private doSell(ids: string[]): void {
@@ -759,8 +783,8 @@ export class UI {
     const tabs = h(
       'div',
       { class: 'tabs', role: 'tablist' },
-      ...[['eggs', '🥚 Eggs'], ['boosts', '⚡ Boosts'], ['rods', 'Rods'], ['upgrades', 'Upgrades'], ['style', 'Style']].map(([id, l]) =>
-        h('button', { class: `tab${tab === id ? ' sel' : ''}`, role: 'tab', 'aria-selected': String(tab === id), onclick: () => { this.panelState.tab = id; this.renderPanel(); } }, l),
+      ...[['eggs', 'egg', 'Eggs'], ['boosts', 'bolt', 'Boosts'], ['rods', 'rod', 'Rods'], ['upgrades', 'up', 'Upgrades'], ['style', 'brush', 'Style']].map(([id, ic, l]) =>
+        h('button', { class: `tab${tab === id ? ' sel' : ''}`, role: 'tab', 'aria-selected': String(tab === id), onclick: () => { this.panelState.tab = id; this.renderPanel(); } }, iconEl(ic, 'ti'), h('span', {}, l)),
       ),
     );
     let body: HTMLElement;
@@ -814,14 +838,20 @@ export class UI {
           h(
             'div',
             { class: 'upg' },
-            h('div', {}, h('h3', {}, `${u.name}  `, h('span', { class: 'cmp' }, `Lv ${lvl}/${max}`)), lvls, h('p', {}, `Now: ${u.describe(lvl)}`), lvl < max ? h('p', { class: 'cmp', html: `Next: <span class="up">${esc(u.describe(lvl + 1))}</span>` }) : null),
+            h('div', {}, h('h3', {}, iconEl(u.id === 'bag' ? 'bag' : u.id === 'sellValue' ? 'coin' : 'fish', 'ui-ico'), `${u.name} `, h('span', { class: 'lv-tag' }, `Lv ${lvl}/${max}`)), lvls, h('p', {}, `Now: ${u.describe(lvl)}`), lvl < max ? h('p', { class: 'cmp', html: `Next: <span class="up">${esc(u.describe(lvl + 1))}</span>` }) : null),
             btn,
           ),
         );
       }
     }
     const t = s.state.tickets;
-    return this.shell('Shop', body, h('footer', {}, h('span', { class: 'total' }, `¢ ${fmtCoins(s.state.coins)}${t.meadow || t.reef ? ` · 🎟 ${t.meadow} Meadow · ${t.reef} Reef` : ''}`)), tabs);
+    return this.shell(
+      'Shop',
+      body,
+      h('footer', {}, h('span', { class: 'total' }, iconEl('coin', 'fi'), fmtCoins(s.state.coins), t.meadow || t.reef ? h('span', { class: 'tickets' }, iconEl('ticket', 'fi'), `${t.meadow} Meadow · ${t.reef} Reef`) : null)),
+      tabs,
+      'shop',
+    );
   }
 
   private journalPanel(): HTMLElement {
@@ -849,7 +879,7 @@ export class UI {
       grid.append(
         h(
           'button',
-          { class: `card${j ? '' : ' unknown'}${ps.journalSel === sp.id ? ' sel' : ''}`, 'aria-label': j ? sp.name : 'Undiscovered species', onclick: () => { ps.journalSel = sp.id; this.renderPanel(); } },
+          { class: `card r-${sp.rarity}${j ? '' : ' unknown'}${ps.journalSel === sp.id ? ' sel' : ''}`, 'aria-label': j ? sp.name : 'Undiscovered species', onclick: () => { ps.journalSel = sp.id; this.renderPanel(); } },
           h('img', { src: this.d.thumb(sp.id, 'normal', !j), alt: '' }),
           h('div', { class: 'name' }, j ? sp.name : '???'),
           h('div', { class: 'rarity', style: `color:${RARITY_COLOR[sp.rarity]}` }, `${RARITY_GLYPH[sp.rarity]} ${RARITY_LABEL[sp.rarity]}`),
@@ -885,7 +915,7 @@ export class UI {
       h('div', { class: 'toolbar' }, poolSel, discSel),
       h('div', { class: 'journal' }, grid, detail),
     );
-    return this.shell('Journal', body);
+    return this.shell('Journal', body, undefined, undefined, 'book');
   }
 
   /** Real per-cast odds from the same resolver the game uses (no hidden adjustments). */
@@ -1027,13 +1057,13 @@ export class UI {
         ),
       );
     }
-    return this.shell('Paused', body, h('footer', {}, h('button', { class: 'btn primary', onclick: () => this.close() }, 'Resume')), tabs);
+    return this.shell('Paused', body, h('footer', {}, h('button', { class: 'btn primary', onclick: () => this.close() }, 'Resume')), tabs, 'gear');
   }
 
   confirm(text: string, yes: string, onYes: () => void): void {
     const box = h(
       'div',
-      { class: 'overlay', style: 'z-index:5' },
+      { class: 'overlay', style: 'z-index:9' },
       h(
         'div',
         { class: 'panel', role: 'alertdialog', 'aria-label': text, style: 'width:min(420px,100%)' },

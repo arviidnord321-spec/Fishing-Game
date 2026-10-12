@@ -2,8 +2,8 @@
 
 ## Game assets
 
-The game ships **no third-party art, audio or font files**. Everything is created in code and
-written for this project:
+The game ships **no third-party art or audio**. The only third-party asset is one font (below).
+Everything else is created in code and written for this project:
 
 | Asset | Source | License |
 | --- | --- | --- |
@@ -14,8 +14,9 @@ written for this project:
 | Water, sky, particle shaders | GLSL written for this project (`src/game/water.ts`, `src/game/effects.ts`) | Project-original |
 | Sign textures, contact shadows, fish icons | Drawn at runtime with Canvas 2D or rendered from the procedural models | Project-original |
 | Music and sound effects | Synthesized at runtime with Web Audio (`src/game/audio.ts`) | Project-original |
-| UI icons | Unicode glyphs and one inline SVG fish (`src/ui/ui.ts`) | Project-original |
-| Fonts | The player's system fonts (`ui-rounded`, Trebuchet MS, Segoe UI, system-ui); none bundled | Not distributed |
+| UI font | **Fredoka** 600/700, latin subset (`src/assets/fonts/`, from the `@fontsource/fredoka` 5.3.0 package), inlined into the built CSS. Copyright 2016 The Fredoka Project Authors. The license text is in `src/assets/fonts/OFL-Fredoka.txt`, and a notice comment is kept in the shipped CSS. | SIL Open Font License 1.1 |
+| UI icons | Inline SVG drawn for this project (`src/ui/icons.ts`) | Project-original |
+| Clouds, shore foam | Procedural geometry (`src/game/scenery.ts`) | Project-original |
 | Favicon | Inline SVG in `index.html` | Project-original |
 
 No assets, names, screenshots or branding were taken from the reference recording ("Hole

@@ -276,7 +276,7 @@ export class GameApp {
       if (e.type === 'reward') this.ui.toast(`${e.source}: ${rewardText(e.reward)}`, 'big', 2400);
       if (e.type === 'streak') {
         this.audio.play('rare', 1.2);
-        this.ui.celebrate(`🔥 HOT STREAK ×${e.factor.toFixed(1)}`, `${e.streak} fish in a row — keep it going!`, 'streak', 2600);
+        this.ui.celebrate(`HOT STREAK ×${e.factor.toFixed(1)}`, `${e.streak} fish in a row — keep it going!`, 'streak', 2600);
       }
     });
     this.repo.onStatus = () => {};
@@ -409,6 +409,8 @@ export class GameApp {
     if (this.exp.includes('nochar')) this.character.root.visible = false;
     if (this.exp.includes('noterrain')) this.world.debugPlainTerrain();
     if (this.exp.includes('nolabels')) this.ui.root.style.display = 'none';
+    if (this.exp.includes('noclouds')) this.world.debugHide('clouds');
+    if (this.exp.includes('nofoam')) this.world.debugHide('foam');
     this.particles.budget = level.particles;
     this.npcs.stride = level.npcStride;
     this.resize();
@@ -1050,7 +1052,7 @@ export class GameApp {
     }
     if (s.state.eggsOpened === 0 && s.state.tutorial.firstPurchase) {
       return s.state.coins >= 300 || s.state.tickets.meadow > 0
-        ? { text: 'Hatch your first pet!', sub: 'Pets follow you and boost every catch · Pet Eggs hut or 🛒 Shop' }
+        ? { text: 'Hatch your first pet!', sub: 'Pets follow you and boost every catch · Pet Eggs hut or the Shop' }
         : { text: `Save ¢ 300 for a Meadow Egg`, sub: `Pets boost your catches · you have ¢ ${fmtCoins(s.state.coins)}` };
     }
     for (const pool of ['reed', 'moon'] as const) {
@@ -1119,7 +1121,7 @@ export class GameApp {
         else if (unlocked) addLabel(a.id, a.pos, POOLS_BY_ID[id].name, id === 'moon' ? 'Night brings rare giants' : 'Open', '', 30);
         else {
           const u = s.unlockProgress(id as 'reed' | 'moon');
-          addLabel(a.id, a.pos, `🔒 ${POOLS_BY_ID[id].name}`, `${u.rodOwned ? '✓' : '○'} ${u.rodName} · ${u.found}/${u.need} ${u.fromPool} species`, 'lock', 30);
+          addLabel(a.id, a.pos, POOLS_BY_ID[id].name, `${u.rodOwned ? '✓' : '○'} ${u.rodName} · ${u.found}/${u.need} ${u.fromPool} species`, 'lock', 30);
         }
       } else if (a.id === 'stand' && !busy) addLabel(a.id, a.pos, near === 'stand' ? 'Fish Stand — press E / Sell' : 'Fish Stand', near === 'stand' ? undefined : 'Sell catches', near === 'stand' ? 'prompt' : '');
       else if (a.id === 'workshop') addLabel(a.id, a.pos, near === 'workshop' ? 'Workshop — press E / Open' : 'Workshop', near === 'workshop' ? undefined : 'Rods & upgrades', near === 'workshop' ? 'prompt' : '');

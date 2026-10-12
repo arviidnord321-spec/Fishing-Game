@@ -113,7 +113,7 @@ platform approval.**
 
 | Requirement (from the guide's summary of the CrazyGames docs) | Status |
 | --- | --- |
-| Initial download ≤ 50 MB (≤ 20 MB for the mobile homepage), ≤ 1,500 files | ✅ about 0.76 MB, 3 files |
+| Initial download ≤ 50 MB (≤ 20 MB for the mobile homepage), ≤ 1,500 files | ✅ about 0.91 MB, 3 files |
 | Gameplay starts immediately or within one click | ✅ loads straight into play beside Meadow Pool |
 | No in-game fullscreen button, no external links, no cross-promotion, no store badges | ✅ grep sweep of `src/` and `index.html` found no URLs except the SDK, and no `requestFullscreen`/`window.open` |
 | No browser dialogs (`alert`/`confirm`/`prompt`) | ✅ in-game confirmation panel only |

@@ -5,6 +5,7 @@ import { RARITIES } from '../data/types';
 import { dailyReward, questLabel, type Reward } from '../logic/meta';
 import type { GameStore, HatchResult } from '../logic/store';
 import { fmtCoins, fmtTime, h } from './dom';
+import { iconEl } from './icons';
 
 export interface MetaDeps {
   store: GameStore;
@@ -55,13 +56,13 @@ export function eggsTab(d: MetaDeps): HTMLElement {
     const tickets = egg.id === 'meadow' ? s.state.tickets.meadow : egg.id === 'reef' ? s.state.tickets.reef : 0;
     const pity = s.state.eggPity[egg.id];
     let btn: HTMLElement;
-    if (!st.unlocked) btn = h('button', { class: 'btn', disabled: true }, `🔒 Reach level ${egg.level}`);
+    if (!st.unlocked) btn = h('button', { class: 'btn', disabled: true }, iconEl('lock', 'bi'), `Reach level ${egg.level}`);
     else if (!st.canAfford) btn = h('button', { class: 'btn', disabled: true }, `Not enough coins (¢ ${fmtCoins(egg.cost)})`);
     else
       btn = h(
         'button',
         { class: 'btn primary hatch-btn', onclick: (e: Event) => { (e.currentTarget as HTMLButtonElement).disabled = true; showHatch(d, egg.id); } },
-        st.ticket ? `Open with ticket (${tickets} left)` : `Open · ¢ ${fmtCoins(egg.cost)}`,
+        ...(st.ticket ? [iconEl('ticket', 'bi'), `Open free (${tickets})`] : [iconEl('coin', 'bi'), fmtCoins(egg.cost)]),
       );
     const owned = pool.filter((p) => s.state.pets[p.id]).length;
     wrap.append(
@@ -92,9 +93,9 @@ export function boostsTab(d: MetaDeps): HTMLElement {
       h(
         'div',
         { class: `boost-card b-${b.id}${left > 0 ? ' active' : ''}` },
-        h('div', { class: 'boost-ico', 'aria-hidden': 'true' }, b.id === 'coinRush' ? '¢' : b.id === 'luckyCharm' ? '☘' : '⟳'),
+        h('div', { class: 'boost-ico', 'aria-hidden': 'true' }, iconEl(b.id === 'coinRush' ? 'coin' : b.id === 'luckyCharm' ? 'clover' : 'reel', 'bxi')),
         h('div', { class: 'boost-txt' }, h('h3', {}, b.name), h('p', {}, `${b.describe} for ${b.seconds / 60} minutes of play`), left > 0 ? h('p', { class: 'up' }, `Active · ${fmtTime(left)} left (buying again adds time)`) : null),
-        h('button', { class: 'btn primary', disabled: s.state.coins < cost, onclick: (e: Event) => { (e.currentTarget as HTMLButtonElement).disabled = true; const r = s.buyBoost(b.id); if (!r.ok) d.toast(r.reason, 'bad'); } }, s.state.coins < cost ? `¢ ${fmtCoins(cost)} needed` : `Buy ¢ ${fmtCoins(cost)}`),
+        h('button', { class: 'btn primary', disabled: s.state.coins < cost, onclick: (e: Event) => { (e.currentTarget as HTMLButtonElement).disabled = true; const r = s.buyBoost(b.id); if (!r.ok) d.toast(r.reason, 'bad'); } }, iconEl('coin', 'bi'), fmtCoins(cost)),
       ),
     );
   }
@@ -115,7 +116,7 @@ export function petsBody(d: MetaDeps): HTMLElement {
       return h(
         'div',
         { class: `pet-slot${id ? ' filled' : ''}${unlocked ? '' : ' locked'}` },
-        id ? h('img', { src: d.petThumb(id, false), alt: PETS_BY_ID[id].name }) : h('span', {}, unlocked ? 'Empty slot' : '🔒'),
+        id ? h('img', { src: d.petThumb(id, false), alt: PETS_BY_ID[id].name }) : unlocked ? h('span', {}, 'Empty') : iconEl('lock', 'slot-lock'),
       );
     })),
     h('div', { class: 'bonus-row' }, ...sum.map(({ t, v }) => h('span', { class: `bonus-chip${v > 0 ? ' on' : ''}` }, `${BONUS_ICON[t]} ${pct(v)} ${BONUS_LABEL[t]}`))),
@@ -178,9 +179,9 @@ export function dailyBody(d: MetaDeps, today: string, claim: () => void): HTMLEl
         'div',
         { class: `day${done ? ' done' : ''}${isToday ? ' today' : ''}${day === 7 ? ' big' : ''}` },
         h('small', {}, `Day ${day}`),
-        h('div', { class: 'day-ico', 'aria-hidden': 'true' }, reward.reefTickets ? '🥚' : reward.meadowTickets ? '🥚' : '¢'),
+        h('div', { class: 'day-ico', 'aria-hidden': 'true' }, iconEl(reward.reefTickets || reward.meadowTickets ? 'egg' : day === 7 ? 'gift' : 'coin', 'dyi')),
         h('div', { class: 'day-txt' }, rewardText(reward)),
-        done ? h('div', { class: 'check' }, '✓') : null,
+        done ? iconEl('check', 'day-check') : null,
       ),
     );
   }

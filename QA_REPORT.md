@@ -1,6 +1,80 @@
 # QA report
 
-## Round 4: pet redesign from the reference sheet (latest)
+## Round 5: UI overhaul and world look (latest)
+
+**UI.** Every screen was restyled in a chunky, toy-like style common to popular Roblox simulator games. No Roblox
+assets or branding are used.
+- **Font and icons.**
+  - Bundled the Fredoka font (SIL OFL), with dark-outlined text.
+  - New SVG icon set (`src/ui/icons.ts`) replaces emoji, which looked different on every OS.
+- **Buttons.**
+  - Glossy 3D buttons (green buy, blue, red, yellow).
+  - Big colour-coded menu buttons (Bag, Book, Shop, Pets).
+  - Square icon buttons (gift, settings).
+  - A big round CAST button that turns red and pulses for HOOK!.
+- **HUD.**
+  - Currency capsules with a "+" to the shop.
+  - A star level badge with an XP bar.
+  - Icon chips for streak and boosts.
+  - An orange quest board.
+  - A day/night pill with sun and moon icons.
+- **Panels.**
+  - Blue framed panels with a title icon and a red ✕, icon tabs, and rarity-coloured item cards.
+  - Egg cards with per-egg colours.
+  - An EQUIPPED tag on pet cards.
+  - Daily calendar tiles.
+  - A rarity-coloured catch card with a big green Continue button.
+  - Celebration banners with icons.
+- **Minigames and feedback.**
+  - Heart line-integrity indicators and a labelled progress bar.
+  - Big outlined "FISH ON!".
+  - Outlined world labels, and green interaction prompts.
+- **Small screens.**
+  - Short screens (≤560 px tall) compact everything. The menu row, quests and chips hide while
+    casting or reeling.
+  - Portrait phones get a compact top bar, and the goal banner moves to the right side.
+  - Shop tabs become icon-only under 760 px.
+- **Stacking.** Panels now sit above the HUD and toasts above panels.
+
+**World.**
+- 16 drifting low-poly clouds (one merged mesh, one draw call), tinted at night.
+- An animated shore-foam band on medium/high quality.
+- Paths merged into one mesh plus thin darker edging (21 → 2 draw calls).
+- Slightly richer ground-texture variation.
+
+**Verification.**
+- `scripts/ui-tour.mjs` screenshots every screen with a mid-game save:
+  - HUD, daily, bag, the five shop tabs, hatch, pets, journal and pause;
+  - cast, bite, reel, catch and stand.
+- It was run at 1280×720, 844×390 touch and 390×844 touch, and iterated until there were no
+  overlaps or clipping. Fixes found that way:
+  - the sun icon was invisible on the dark pill;
+  - the level star drew above panels;
+  - the goal banner and top-right buttons collided on phones;
+  - the reel meter covered the menu on short screens;
+  - shop tab icons were hidden on narrow screens;
+  - the hatch reveal overflowed short screens;
+  - the path strips faced downwards and rendered dark.
+- 85/85 unit tests pass. These all pass with no console errors:
+  - `qa-pets`;
+  - `qa-play` (desktop and 800×450 touch);
+  - `qa-event` (Rift Bloom);
+  - `qa-misc` (hidden tab, panel churn, night).
+
+**Performance.** `scripts/fps-probe.mjs`, start view, previous commit vs this one, interleaved runs, headless
+Chromium on **CPU SwiftShader** (so the auto preset is low):
+- The first version cost about 8–12%. Hiding the UI isolated it to the 3D additions, and per-feature
+  switches (`?exp=noclouds,nofoam`) found:
+  - the shore foam: a wide transparent band;
+  - the path border: drawn as a full underlay.
+- Fixes: the foam is now medium/high only and narrower, and the border is only thin edge strips.
+- After: 9.7–12.2 fps vs 10.9–12.4 fps before, which is within run-to-run noise.
+- Start view: 142 → 125 draw calls; 31.7k → 41k triangles (the clouds).
+- Real-GPU frame rates were **not** measured.
+
+---
+
+## Round 4: pet redesign from the reference sheet
 
 All 18 pets were rebuilt from the supplied redesign sheet (`src/game/petKit.ts`, `src/game/petModels.ts`).
 The ids, names, rarities, bonuses, eggs and save format are unchanged.

@@ -80,9 +80,9 @@ export function terrainMaterial(color: string, halfW: number, halfH: number): TH
       const t = k * k * (3 - 2 * k);
       const edge = Math.hypot(mx / halfW, mz / halfH);
       const edgeDark = 1 - Math.min(1, Math.max(0, (edge - 0.85) / 0.2)) * 0.12;
-      const m = (0.93 + 0.12 * fine) * edgeDark;
-      const r = base.r * (0.74 + (1.14 - 0.74) * t) * m;
-      const gg = base.g * (0.92 + (1.09 - 0.92) * t) * m;
+      const m = (0.91 + 0.16 * fine) * edgeDark;
+      const r = base.r * (0.7 + (1.2 - 0.7) * t) * m;
+      const gg = base.g * (0.88 + (1.12 - 0.88) * t) * m;
       const b = base.b * (0.7 + (0.82 - 0.7) * t) * m;
       const i = (py * size + px) * 4;
       // canvas stores sRGB; convert from the linear working color
